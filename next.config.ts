@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // pdfkit lee sus archivos de métricas de fuente (.afm) con rutas
@@ -20,4 +21,10 @@ const nextConfig: NextConfig = {
   ],
 };
 
-export default nextConfig;
+// Sin SENTRY_AUTH_TOKEN todavía — el plugin sube sourcemaps solo si hay
+// token; sin él, se salta esa parte y el build sigue funcionando normal.
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  widenClientFileUpload: false,
+  disableLogger: true,
+});
