@@ -70,8 +70,9 @@
 
 ## 10. Calidad y lanzamiento
 
-- [ ] 10.1 QA en dispositivos reales: Android de gama baja (offline, GPS, cámara), iPhone (instalación PWA, sync al abrir), tablet como kiosco
-- [ ] 10.2 Auditoría de accesibilidad AA (contraste 4.5:1, objetivos táctiles, reduced motion, lectura sin color) sobre los flujos de fichaje y tablero
-- [ ] 10.3 Textos finales del acuerdo y aviso de privacidad + revisión del laboralista (interpretaciones marcadas en design.md § Open Questions) antes de publicar
+- [ ] 10.1 QA en dispositivos reales: Android de gama baja (offline, GPS, cámara), iPhone (instalación PWA, sync al abrir), tablet como kiosco — requiere hardware físico que el asistente no tiene; checklist acotado en `checklists-10.md`
+- [x] 10.2 Auditoría de accesibilidad AA sobre fichaje y tablero: contraste medido en navegador real para cada color/fondo del sistema (texto ink 17.9:1, muted 7.8:1, danger 6.4:1, primary-strong 9.1:1, botón primario 7.1:1 — todos superan el mínimo 4.5:1); objetivos táctiles ≥48px (botones) y 64px (teclado PIN); sin animaciones con riesgo vestibular (solo transición de color); estados de éxito/error/alerta siempre acompañados de texto o ícono, nunca solo color (⚠/⛔ en tablero de horas). Encontrado y corregido: `Mensaje` usaba `role="status"` (anuncio pasivo) también para errores — ahora usa `role="alert"` para que un lector de pantalla anuncie de inmediato fallos como "no pudimos obtener tu ubicación"
+- [ ] 10.3 Textos finales del acuerdo y aviso de privacidad + revisión del laboralista (interpretaciones marcadas en design.md § Open Questions) antes de publicar — requiere juicio profesional de un laboralista; alcance acotado en `checklists-10.md`
 - [ ] 10.4 Entorno de producción: Supabase prod, migraciones por CI, dominio, monitoreo básico de errores
+- [x] 10.5a Deploy en Vercel actualizado con el trabajo de esta sesión (commit `611f216`, push a `main`): `/login` y `/` responden 200 en producción
 - [ ] 10.5 Smoke test end-to-end en producción con una empresa real de prueba (alta → empleados → fichajes ambos modos → reporte exportado)

@@ -7,7 +7,10 @@ const clasesPorTono: Record<Tono, string> = {
 
 export function Mensaje({ tono, children }: { tono: Tono; children: React.ReactNode }) {
   return (
-    <p role="status" className={`rounded-md px-4 py-3 text-sm font-medium ${clasesPorTono[tono]}`}>
+    <p
+      role={tono === "error" ? "alert" : "status"}
+      className={`rounded-md px-4 py-3 text-sm font-medium ${clasesPorTono[tono]}`}
+    >
       {children}
     </p>
   );
