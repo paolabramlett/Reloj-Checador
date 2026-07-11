@@ -1,3 +1,40 @@
 @import "tailwindcss";
 
-/* Tokens del sistema de diseño: se definen en la tarea 1.4 (DESIGN.md). */
+/*
+ * Tokens del DESIGN.md ("El Sello de Confianza"): verde de confianza
+ * restringido a acciones/estados de éxito, blanco puro sin tinte cálido,
+ * tinta casi negra. Alias sobre la paleta de Tailwind v4 (ya en OKLCH y
+ * auditada) en vez de valores inventados a mano — así el contraste AA
+ * queda garantizado por una escala ya verificada.
+ */
+@theme {
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  /* Verde de confianza: reservado para fichar, éxito, "en regla". */
+  --color-primary: var(--color-green-800);
+  --color-primary-strong: var(--color-green-900);
+  --color-primary-tint: var(--color-green-50);
+  --color-accent: var(--color-green-500); /* solo decorativo: íconos, checks */
+
+  --color-danger: var(--color-red-700);
+  --color-danger-tint: var(--color-red-50);
+
+  --color-bg: var(--color-white);
+  --color-surface: var(--color-green-50); /* leve tinte hacia la marca */
+  --color-ink: var(--color-neutral-900);
+  --color-muted: var(--color-neutral-600);
+  --color-border: var(--color-neutral-200);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --ease-standard: cubic-bezier(0.165, 0.84, 0.44, 1); /* ease-out-quart */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}

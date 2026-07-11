@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { RegistrarSW } from "./registrar-sw";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Reloj Checador",
@@ -24,8 +31,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es-MX">
-      <body>
+    <html lang="es-MX" className={inter.variable}>
+      <body className="font-sans antialiased">
         {children}
         <RegistrarSW />
       </body>
