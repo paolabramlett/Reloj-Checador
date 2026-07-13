@@ -244,10 +244,10 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 # Textos en español (tarea de rebrand a Chekly) — estos solo aplican al
-# entorno LOCAL (`supabase start`). El proyecto hosted usa la plantilla
-# por defecto de Supabase (en inglés) hasta que se copien manualmente en
-# el Dashboard: Authentication → Email Templates. Ver README de esta
-# carpeta o el mensaje del asistente para el contenido exacto a pegar.
+# entorno LOCAL (`supabase start`). El proyecto hosted necesita que se
+# copien a mano en el Dashboard: Authentication → Emails → Templates
+# (ya se copiaron confirmation y recovery; invite/magic_link/email_change/
+# reauthentication quedan listos acá aunque la app hoy no los dispara).
 [auth.email.template.confirmation]
 subject = "Confirma tu cuenta de Chekly"
 content_path = "./supabase/templates/confirmation.html"
@@ -255,6 +255,22 @@ content_path = "./supabase/templates/confirmation.html"
 [auth.email.template.recovery]
 subject = "Restablece tu contraseña de Chekly"
 content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.invite]
+subject = "Te invitaron a Chekly"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Tu enlace para entrar a Chekly"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Confirma tu nuevo correo en Chekly"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "Tu código de confirmación de Chekly"
+content_path = "./supabase/templates/reauthentication.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
