@@ -38,3 +38,35 @@ body {
   background: var(--color-bg);
   color: var(--color-ink);
 }
+
+/*
+ * Entrada suave para la landing (marketing, no la app). Deliberadamente
+ * NO depende de scroll ni de JS (nada de IntersectionObserver ni
+ * animation-timeline: view() — ambos fallaron en pruebas: el observer
+ * nunca disparaba en un entorno de navegador automatizado, y
+ * view-timeline producía artefactos visuales de doble-pintado). Corre
+ * una sola vez al cargar la página — para contenido debajo del pliegue
+ * ya terminó de animar para cuando el usuario llega a verlo, que es
+ * visualmente idéntico a "siempre visible". Sin sorpresas, sin riesgo.
+ */
+@keyframes entrada-landing {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.al-entrar-en-vista {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .al-entrar-en-vista {
+    animation: entrada-landing 700ms var(--ease-standard) both;
+  }
+}
