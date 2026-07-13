@@ -5,6 +5,10 @@
  * vigente, y tramos_pendientes_revision detectando ambos casos (turno
  * abierto, cierre marcado como anomalía).
  *
+ * El check de regresión "clock_in real" ejercita app/api/fichar/route.ts
+ * de verdad, vía HTTP, así que requiere un `npm run dev` corriendo en
+ * NEXT_PUBLIC_SITE_URL (por defecto http://localhost:3000).
+ *
  * Uso: node scripts/test-correcciones-fichajes.mjs  (lee .env.local)
  */
 import { createClient } from "@supabase/supabase-js";
@@ -38,7 +42,8 @@ check("Duración exactamente igual al umbral NO excede (frontera)", !duracionExc
 const stamp = Date.now();
 const email = `correcciones-${stamp}@mailinator.com`;
 const password = "PruebaSegura123!";
-let ownerId, empleadoUserId, companyId, workCenterId, empleadoId;
+const SITE_URL = env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+let ownerId, empleadoUserId, companyId, workCenterId, empleadoId, empleadoRegresionUserId;
 
 try {
   const { data: u } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -375,7 +380,115 @@ try {
     `dio ${horasFix1}`,
   );
 
-  // 15. RLS cruzado entre empresas: una segunda empresa (con su propio
+  // 15. Regresión: al cerrar un turno CON descanso, la duración del
+  // auto-flag de "cierre tardío" (app/api/fichar/route.ts) se debe medir
+  // desde el clock_in real que abrió el turno, no desde el break_end que
+  // lo precede inmediatamente. Bug real que esto reproduce: el código
+  // solo miraba `ultimoEvento` (el evento inmediatamente anterior), que
+  // para break_end SÍ es el break_start correspondiente (correcto), pero
+  // para clock_out con un descanso de por medio es el break_end, no el
+  // clock_in de apertura — así que un turno de 39h con un descanso corto
+  // justo antes de cerrar terminaba SIN marcarse como anomalía, porque
+  // solo se medía la hora transcurrida desde que terminó el descanso.
+  //
+  // Escenario, vía HTTP real contra /api/fichar (no inserción directa,
+  // porque el bug está en la lógica del endpoint):
+  //   clock_in hace 39h (turno olvidado) -> break_start hace 2h ->
+  //   break_end hace 1h (descanso corto, con pinta de normal) ->
+  //   clock_out AHORA.
+  // El turno completo dura ~39h y debe quedar flag_sequence_anomaly=true,
+  // aunque el hueco desde break_end sea de apenas 1h.
+  const emailRegresion = `correcciones-regresion-${stamp}@mailinator.com`;
+  const { data: uRegresion } = await admin.auth.admin.createUser({
+    email: emailRegresion,
+    password,
+    email_confirm: true,
+  });
+  empleadoRegresionUserId = uRegresion.user.id;
+  const { data: empRegresion } = await cliente
+    .from("employees")
+    .insert({
+      company_id: companyId,
+      work_center_id: workCenterId,
+      full_name: "Regresion ClockIn Real",
+      auth_user_id: empleadoRegresionUserId,
+    })
+    .select()
+    .single();
+  const empRegresionId = empRegresion.id;
+
+  const clienteRegresion = createClient(URL_, ANON, { auth: { persistSession: false } });
+  const { data: sesionRegresion, error: errorSesionRegresion } = await clienteRegresion.auth.signInWithPassword({
+    email: emailRegresion,
+    password,
+  });
+  check(
+    "Regresión clock_in real: el empleado de prueba pudo iniciar sesión",
+    !errorSesionRegresion && !!sesionRegresion?.session,
+    errorSesionRegresion?.message,
+  );
+
+  const ahoraRegresion = Date.now();
+  await insertarEventoPara(empRegresionId, "clock_in", new Date(ahoraRegresion - 39 * 3600_000).toISOString());
+  await insertarEventoPara(empRegresionId, "break_start", new Date(ahoraRegresion - 2 * 3600_000).toISOString());
+  await insertarEventoPara(empRegresionId, "break_end", new Date(ahoraRegresion - 1 * 3600_000).toISOString());
+
+  // Construye la cookie de sesión que @supabase/ssr espera leer en
+  // app/api/fichar/route.ts (crearClienteServidor -> createServerClient),
+  // para poder hacer una llamada HTTP real y autenticada como este
+  // empleado en vez de invocar la ruta directamente.
+  const projectRef = new URL(URL_).hostname.split(".")[0];
+  const nombreCookieSesion = `sb-${projectRef}-auth-token`;
+  const valorCookieSesion =
+    "base64-" + Buffer.from(JSON.stringify(sesionRegresion.session), "utf8").toString("base64url");
+
+  const idClockOutRegresion = randomUUID();
+  let respuestaFichar;
+  try {
+    respuestaFichar = await fetch(`${SITE_URL}/api/fichar`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${nombreCookieSesion}=${valorCookieSesion}`,
+      },
+      body: JSON.stringify({
+        id: idClockOutRegresion,
+        event_type: "clock_out",
+        device_ts: new Date(ahoraRegresion).toISOString(),
+        sync_ts: new Date(ahoraRegresion).toISOString(),
+        lat: 19.4,
+        lng: -99.1,
+      }),
+    });
+  } catch (e) {
+    check(
+      "Regresión clock_in real: POST /api/fichar respondió",
+      false,
+      `No se pudo conectar a ${SITE_URL} — ¿está corriendo 'npm run dev'? (${e.message})`,
+    );
+  }
+
+  if (respuestaFichar) {
+    const cuerpoFichar = await respuestaFichar.json().catch(() => null);
+    check(
+      "Regresión clock_in real: POST /api/fichar del clock_out respondió 200",
+      respuestaFichar.status === 200,
+      `status ${respuestaFichar.status} — ${JSON.stringify(cuerpoFichar)}`,
+    );
+
+    const { data: eventoClockOutRegresion } = await admin
+      .from("clock_events")
+      .select("flag_sequence_anomaly")
+      .eq("id", idClockOutRegresion)
+      .maybeSingle();
+    check(
+      "Regresión: turno de 39h con descanso corto justo antes de cerrar SÍ queda flageado (medido desde el clock_in real, no desde el break_end previo)",
+      eventoClockOutRegresion?.flag_sequence_anomaly === true,
+      JSON.stringify(eventoClockOutRegresion),
+    );
+  }
+
+  // 16. RLS cruzado entre empresas: una segunda empresa (con su propio
   // owner y empleado) no debe poder leer ni insertar correcciones de la
   // primera empresa.
   const stampB = `${stamp}-b`;
@@ -452,6 +565,7 @@ try {
   }
   if (ownerId) await admin.auth.admin.deleteUser(ownerId);
   if (empleadoUserId) await admin.auth.admin.deleteUser(empleadoUserId);
+  if (empleadoRegresionUserId) await admin.auth.admin.deleteUser(empleadoRegresionUserId);
 }
 
 console.log(failures === 0 ? "\nTodas las pruebas de corrección de fichajes pasan." : `\n${failures} fallas.`);

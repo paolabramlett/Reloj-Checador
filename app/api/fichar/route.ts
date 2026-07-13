@@ -120,8 +120,34 @@ export async function POST(request: NextRequest) {
     ultimoEvento &&
     (eventType === "clock_out" || eventType === "break_end")
   ) {
+    // Para break_end, el predecesor inmediato SIEMPRE es el break_start que
+    // abrió el descanso (lo garantiza la máquina de estados de lib/fichaje.ts),
+    // así que ultimoEvento sirve tal cual. Para clock_out, en cambio, si el
+    // turno tuvo un descanso el predecesor inmediato es el break_end, no el
+    // clock_in que abrió el turno — medir desde ahí subestima la duración
+    // real (un turno de 39h con un descanso corto justo antes de cerrar no
+    // quedaría marcado). Buscamos entonces el clock_in más reciente: por la
+    // misma máquina de estados, si esta transición es válida no pudo haber
+    // ocurrido ningún clock_out desde que se abrió el turno actual, así que
+    // ese clock_in es necesariamente el que lo abrió, sin importar cuántos
+    // break_start/break_end hubo en medio.
+    let aperturaTs = ultimoEvento.device_ts;
+    if (eventType === "clock_out" && ultimoEvento.event_type === "break_end") {
+      const { data: ultimoClockIn } = await supabase
+        .from("clock_events")
+        .select("device_ts")
+        .eq("employee_id", empleado.id)
+        .eq("event_type", "clock_in")
+        .order("device_ts", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (ultimoClockIn) {
+        aperturaTs = ultimoClockIn.device_ts;
+      }
+    }
+
     esAnomalia = duracionExcedeUmbral(
-      new Date(ultimoEvento.device_ts),
+      new Date(aperturaTs),
       deviceTs,
       config?.open_shift_threshold_hours ?? 16,
     );
