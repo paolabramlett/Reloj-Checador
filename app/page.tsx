@@ -2,6 +2,18 @@ import Link from "next/link";
 import { Boton } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { AlEntrarEnVista } from "@/components/al-entrar-en-vista";
+import {
+  IconoUbicacion,
+  IconoTablet,
+  IconoSinInternet,
+  IconoReporte,
+  IconoAlerta,
+  IconoUsuarioMas,
+  IconoEquipo,
+  IconoCheck,
+  IconoEscudo,
+  IconoBalanza,
+} from "@/components/iconos-landing";
 
 const LIMITES_ANUALES = [
   { anio: 2026, horas: 48 },
@@ -13,26 +25,31 @@ const LIMITES_ANUALES = [
 
 const CAPACIDADES = [
   {
+    Icono: IconoUbicacion,
     titulo: "Fichaje personal con geocerca",
     texto:
       "Cada quien ficha desde su propio teléfono. Si no está en el lugar de trabajo, Chekly simplemente no deja fichar — sin trucos, sin \"se me olvidó marcar\".",
   },
   {
+    Icono: IconoTablet,
     titulo: "Modo kiosco con PIN y selfie",
     texto:
       "Una tablet en el mostrador basta para todo el equipo. PIN de 4 dígitos y una foto como evidencia de que fue esa persona — sin reconocimiento facial, solo prueba.",
   },
   {
+    Icono: IconoSinInternet,
     titulo: "Funciona sin internet",
     texto:
       "Wifi que falla, datos que se acaban a media semana: el fichaje se guarda en el teléfono al instante y se sincroniza solo en cuanto hay señal.",
   },
   {
+    Icono: IconoReporte,
     titulo: "Reportes listos para una inspección",
     texto:
       "CSV y PDF con hora exacta, ubicación y quién fichó — se exportan el mismo día si llega alguien de la STPS a pedirlos.",
   },
   {
+    Icono: IconoAlerta,
     titulo: "Alertas de horas antes de que sea un problema",
     texto:
       "Un aviso cuando alguien se acerca al límite legal de la semana, no una sorpresa hasta que ya se pasó.",
@@ -41,19 +58,40 @@ const CAPACIDADES = [
 
 const PASOS = [
   {
+    Icono: IconoUsuarioMas,
     numero: "1",
     titulo: "Crea tu cuenta",
     texto: "Registra tu negocio en dos minutos. Sin tarjeta, sin compromiso.",
   },
   {
+    Icono: IconoEquipo,
     numero: "2",
     titulo: "Agrega a tu equipo",
     texto: "Por centro de trabajo, con o sin PIN para el kiosco.",
   },
   {
+    Icono: IconoCheck,
     numero: "3",
     titulo: "Empiecen a fichar",
     texto: "Desde su teléfono o desde una tablet compartida en el local.",
+  },
+];
+
+const SECTORES = [
+  {
+    imagen: "https://images.unsplash.com/photo-1639087407399-0f8cfdac56cf",
+    alt: "Cocinero preparando comida en la cocina de un negocio de comida",
+    titulo: "Fondas y taquerías",
+  },
+  {
+    imagen: "https://images.unsplash.com/photo-1615906655593-ad0386982a0f",
+    alt: "Mecánico trabajando en el motor de un coche en su taller",
+    titulo: "Talleres mecánicos",
+  },
+  {
+    imagen: "https://images.unsplash.com/photo-1742106849926-44b5f7b9a4ef",
+    alt: "Dueño de pie dentro de su pequeña tienda de conveniencia",
+    titulo: "Tiendas y comercios",
   },
 ];
 
@@ -77,7 +115,7 @@ export default function Inicio() {
       </header>
 
       {/* Hero */}
-      <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pb-20 pt-8 md:grid-cols-2 md:pb-28 md:pt-16">
+      <section className="mx-auto grid min-h-[calc(100dvh-88px)] w-full max-w-6xl items-center gap-12 px-6 py-12 md:grid-cols-2">
         <div className="flex flex-col gap-6 text-center md:text-left">
           <h1
             className="text-balance font-bold text-ink"
@@ -106,30 +144,77 @@ export default function Inicio() {
           </div>
         </div>
 
-        {/* Mockup del fichaje real */}
+        {/* Mockup del fichaje real, proporción real de teléfono (9:19.5) */}
         <div className="flex justify-center md:justify-end">
-          <div className="w-[260px] rounded-[2.25rem] bg-ink p-3 shadow-[0_24px_48px_-16px_rgba(23,23,23,0.35)]">
-            <div className="flex flex-col gap-8 rounded-[1.6rem] bg-bg px-5 py-10 text-center">
-              <div className="flex flex-col items-center gap-1">
-                <p className="text-sm text-muted">Tu estado</p>
-                <p className="text-2xl font-semibold text-ink">Fuera de turno</p>
+          <div className="relative aspect-[9/19.5] w-[260px] rounded-[2.75rem] bg-ink p-[10px] shadow-[0_30px_60px_-20px_rgba(23,23,23,0.4)]">
+            {/* Botones laterales */}
+            <div className="absolute -left-[2px] top-24 h-8 w-[3px] rounded-l-sm bg-ink" />
+            <div className="absolute -left-[2px] top-36 h-12 w-[3px] rounded-l-sm bg-ink" />
+            <div className="absolute -right-[2px] top-32 h-16 w-[3px] rounded-r-sm bg-ink" />
+
+            <div className="relative flex h-full flex-col overflow-hidden rounded-[2.15rem] bg-bg">
+              {/* Notch */}
+              <div className="absolute left-1/2 top-0 z-10 h-6 w-28 -translate-x-1/2 rounded-b-2xl bg-ink" />
+
+              <div className="flex flex-1 flex-col items-center justify-center gap-8 px-5 text-center">
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-sm text-muted">Tu estado</p>
+                  <p className="text-2xl font-semibold text-ink">Fuera de turno</p>
+                </div>
+                <div className="flex min-h-12 w-full items-center justify-center rounded-md bg-primary px-6 text-base font-medium text-white">
+                  Marcar entrada
+                </div>
+                <div className="flex flex-col items-center gap-1 border-t border-border pt-6">
+                  <p className="text-xs text-muted">Sucursal Centro · a 12 m</p>
+                  <p className="text-xs font-medium text-primary-strong">Dentro del rango para fichar</p>
+                </div>
               </div>
-              <div className="flex min-h-12 items-center justify-center rounded-md bg-primary px-6 text-base font-medium text-white">
-                Marcar entrada
-              </div>
-              <div className="flex flex-col items-center gap-1 border-t border-border pt-6">
-                <p className="text-xs text-muted">Sucursal Centro · a 12 m</p>
-                <p className="text-xs font-medium text-primary-strong">Dentro del rango para fichar</p>
+
+              {/* Home indicator */}
+              <div className="mb-2 flex justify-center pb-1">
+                <div className="h-1 w-24 rounded-full bg-ink/80" />
               </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Quién lo usa */}
+      <section className="flex min-h-dvh flex-col justify-center bg-surface py-20">
+        <div className="mx-auto w-full max-w-6xl px-6">
+          <AlEntrarEnVista className="mb-12 text-center">
+            <h2 className="text-3xl font-bold text-ink md:text-4xl">Hecho para negocios como el tuyo.</h2>
+            <p className="mx-auto mt-3 max-w-xl text-lg text-muted">
+              No para una startup. Para el negocio que ya conoces.
+            </p>
+          </AlEntrarEnVista>
+          <div className="grid gap-6 md:grid-cols-3">
+            {SECTORES.map((sector, i) => (
+              <AlEntrarEnVista key={sector.titulo} retraso={i * 100}>
+                <div className="group relative aspect-[4/5] overflow-hidden rounded-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`${sector.imagen}?auto=format&fit=crop&w=800&h=1000&q=80`}
+                    alt={sector.alt}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/0 to-ink/0" />
+                  <p className="absolute bottom-5 left-5 text-lg font-semibold text-white">{sector.titulo}</p>
+                </div>
+              </AlEntrarEnVista>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* La ley */}
-      <section className="bg-surface py-20">
+      <section className="flex min-h-dvh flex-col justify-center bg-bg py-20">
         <div className="mx-auto max-w-4xl px-6">
           <AlEntrarEnVista className="flex flex-col gap-4 text-center md:text-left">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-tint text-primary-strong md:mx-0">
+              <IconoBalanza className="h-7 w-7" />
+            </div>
             <h2 className="text-3xl font-bold text-ink md:text-4xl">La ley ya no da tregua.</h2>
             <p className="max-w-2xl text-lg leading-relaxed text-ink md:text-left">
               Desde el 1 de mayo de 2026, la Ley Federal del Trabajo exige llevar un registro
@@ -159,23 +244,28 @@ export default function Inicio() {
       </section>
 
       {/* Cómo funciona */}
-      <section className="mx-auto w-full max-w-5xl px-6 py-20">
-        <AlEntrarEnVista className="mb-12 text-center">
-          <h2 className="text-3xl font-bold text-ink md:text-4xl">Listo el mismo día.</h2>
-        </AlEntrarEnVista>
-        <div className="grid gap-10 md:grid-cols-3">
-          {PASOS.map((paso, i) => (
-            <AlEntrarEnVista key={paso.numero} retraso={i * 100} className="flex flex-col gap-3">
-              <span className="text-sm font-bold text-primary-strong">{paso.numero}</span>
-              <h3 className="text-xl font-semibold text-ink">{paso.titulo}</h3>
-              <p className="leading-relaxed text-muted">{paso.texto}</p>
-            </AlEntrarEnVista>
-          ))}
+      <section className="flex min-h-dvh flex-col justify-center bg-surface py-20">
+        <div className="mx-auto w-full max-w-5xl px-6">
+          <AlEntrarEnVista className="mb-14 text-center">
+            <h2 className="text-3xl font-bold text-ink md:text-4xl">Listo el mismo día.</h2>
+          </AlEntrarEnVista>
+          <div className="grid gap-10 md:grid-cols-3">
+            {PASOS.map((paso, i) => (
+              <AlEntrarEnVista key={paso.numero} retraso={i * 100} className="flex flex-col gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-tint text-primary-strong">
+                  <paso.Icono className="h-7 w-7" />
+                </div>
+                <span className="text-sm font-bold text-primary-strong">{paso.numero}</span>
+                <h3 className="text-xl font-semibold text-ink">{paso.titulo}</h3>
+                <p className="leading-relaxed text-muted">{paso.texto}</p>
+              </AlEntrarEnVista>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Capacidades */}
-      <section className="bg-surface py-20">
+      <section className="flex min-h-dvh flex-col justify-center bg-bg py-20">
         <div className="mx-auto max-w-4xl px-6">
           <AlEntrarEnVista className="mb-14 text-center">
             <h2 className="text-3xl font-bold text-ink md:text-4xl">Lo que hace, de verdad.</h2>
@@ -185,19 +275,46 @@ export default function Inicio() {
               <AlEntrarEnVista
                 key={cap.titulo}
                 retraso={i * 60}
-                className="flex flex-col gap-2 border-b border-border pb-10 last:border-0 last:pb-0 md:flex-row md:gap-8"
+                className="flex flex-col gap-3 border-b border-border pb-10 last:border-0 last:pb-0 md:flex-row md:items-start md:gap-6"
               >
-                <h3 className="shrink-0 text-xl font-semibold text-ink md:w-72">{cap.titulo}</h3>
-                <p className="leading-relaxed text-muted">{cap.texto}</p>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-tint text-primary-strong">
+                  <cap.Icono className="h-6 w-6" />
+                </div>
+                <div className="flex flex-col gap-1 md:flex-row md:gap-8">
+                  <h3 className="shrink-0 text-xl font-semibold text-ink md:w-64">{cap.titulo}</h3>
+                  <p className="leading-relaxed text-muted">{cap.texto}</p>
+                </div>
               </AlEntrarEnVista>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Imagen: fichaje personal en la vida real */}
+      <section className="relative flex min-h-dvh items-end overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://images.unsplash.com/photo-1737162826585-5a797ea6aedc?auto=format&fit=crop&w=1800&q=80"
+          alt="Trabajador revisando su teléfono antes de empezar su turno en la cocina"
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/30 to-ink/0" />
+        <AlEntrarEnVista className="relative w-full px-6 pb-20 pt-40">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-balance text-2xl font-semibold text-white md:text-3xl">
+              Un toque al llegar. Un toque al salir. Nada más que recordar.
+            </p>
+          </div>
+        </AlEntrarEnVista>
+      </section>
+
       {/* Confianza */}
-      <section className="mx-auto w-full max-w-4xl px-6 py-20 text-center">
-        <AlEntrarEnVista className="flex flex-col items-center gap-4">
+      <section className="flex min-h-dvh flex-col justify-center bg-bg px-6 py-20 text-center">
+        <AlEntrarEnVista className="mx-auto flex max-w-4xl flex-col items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-tint text-primary-strong">
+            <IconoEscudo className="h-7 w-7" />
+          </div>
           <h2 className="text-3xl font-bold text-ink md:text-4xl">
             La confianza no se declara, se demuestra.
           </h2>
@@ -210,7 +327,7 @@ export default function Inicio() {
       </section>
 
       {/* Precio */}
-      <section className="bg-surface py-20">
+      <section className="flex min-h-dvh flex-col justify-center bg-surface py-20">
         <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-6 text-center">
           <AlEntrarEnVista className="flex flex-col items-center gap-6">
             <h2 className="text-3xl font-bold text-ink md:text-4xl">Un precio, sin sorpresas.</h2>
@@ -232,9 +349,17 @@ export default function Inicio() {
       </section>
 
       {/* CTA final */}
-      <section className="mx-auto w-full max-w-4xl px-6 py-24 text-center">
-        <AlEntrarEnVista className="flex flex-col items-center gap-6">
-          <h2 className="text-balance text-3xl font-bold text-ink md:text-4xl">
+      <section className="relative flex min-h-[70dvh] items-center justify-center overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://images.unsplash.com/photo-1551888797-ec22463d8461?auto=format&fit=crop&w=1800&q=80"
+          alt="Dueño de un negocio sonriendo mientras trabaja"
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-ink/75" />
+        <AlEntrarEnVista className="relative flex flex-col items-center gap-6 px-6 py-24 text-center">
+          <h2 className="text-balance max-w-2xl text-3xl font-bold text-white md:text-4xl">
             Ponte en regla hoy, no el día de la inspección.
           </h2>
           <Link href="/registro" className="w-full sm:w-auto">
