@@ -6,6 +6,7 @@ import { cerrarSesion } from "@/app/panel/actions";
 import { Boton } from "@/components/ui/button";
 import { PantallaFichaje } from "@/components/pantalla-fichaje";
 import { PantallaConsentimiento } from "@/components/pantalla-consentimiento";
+import { Logo } from "@/components/logo";
 
 export default async function PaginaMiCuenta() {
   const supabase = await crearClienteServidor();
@@ -64,6 +65,7 @@ export default async function PaginaMiCuenta() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-8 px-6 py-12">
+      <Logo ancho={110} className="self-center" />
       <h1 className="text-center text-xl font-medium text-ink">Hola, {empleado.full_name}</h1>
 
       <PantallaFichaje

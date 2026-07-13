@@ -2,7 +2,7 @@
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "Reloj_Checador"
+project_id = "Chekly"
 
 [api]
 enabled = true
@@ -243,10 +243,18 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Textos en español (tarea de rebrand a Chekly) — estos solo aplican al
+# entorno LOCAL (`supabase start`). El proyecto hosted usa la plantilla
+# por defecto de Supabase (en inglés) hasta que se copien manualmente en
+# el Dashboard: Authentication → Email Templates. Ver README de esta
+# carpeta o el mensaje del asistente para el contenido exacto a pegar.
+[auth.email.template.confirmation]
+subject = "Confirma tu cuenta de Chekly"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Restablece tu contraseña de Chekly"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

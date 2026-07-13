@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Boton } from "@/components/ui/button";
 import { Campo } from "@/components/ui/input";
 import { Mensaje } from "@/components/ui/mensaje";
+import { Logo } from "@/components/logo";
 import { iniciarSesion } from "./actions";
 
 export default function PaginaLogin() {
@@ -12,9 +13,10 @@ export default function PaginaLogin() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-12">
+      <Logo ancho={140} className="self-center" />
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-ink">Iniciar sesión</h1>
-        <p className="text-muted">Entra a tu cuenta de Reloj Checador.</p>
+        <p className="text-muted">Entra a tu cuenta de Chekly.</p>
       </div>
 
       <form action={accion} className="flex flex-col gap-4">

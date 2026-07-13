@@ -26,7 +26,7 @@ let dbPromise: Promise<IDBPDatabase<ColaDB>> | null = null;
 // offline-sync: "sobrevive cierres de la app y reinicios del dispositivo").
 function abrirDB() {
   if (!dbPromise) {
-    dbPromise = openDB<ColaDB>("reloj-checador", 1, {
+    dbPromise = openDB<ColaDB>("chekly", 1, {
       upgrade(db) {
         db.createObjectStore("fichajes", { keyPath: "id" });
       },

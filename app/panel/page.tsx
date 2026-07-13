@@ -8,6 +8,7 @@ import { cerrarSesion, seleccionarEmpresa } from "./actions";
 import { Boton } from "@/components/ui/button";
 import { FormularioEmpresa } from "@/components/formulario-empresa";
 import { Mensaje } from "@/components/ui/mensaje";
+import { Logo } from "@/components/logo";
 
 export default async function PaginaPanel() {
   const supabase = await crearClienteServidor();
@@ -28,6 +29,7 @@ export default async function PaginaPanel() {
   if (!empresaActiva) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-12">
+        <Logo ancho={140} className="self-center" />
         <FormularioEmpresa
           titulo="Crea tu negocio"
           subtitulo={`Sesión iniciada como ${user?.email}. Antes de fichar, registra tu negocio.`}
@@ -55,6 +57,7 @@ export default async function PaginaPanel() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-6 px-6 py-12">
+      <Logo ancho={110} />
       <div className="flex flex-col gap-1">
         <p className="text-sm text-muted">{user?.email}</p>
         <h1 className="text-2xl font-semibold text-ink">{empresaActiva.nombre}</h1>

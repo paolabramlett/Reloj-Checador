@@ -10,14 +10,18 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Reloj Checador",
+  title: "Chekly",
   description:
     "Registro de asistencia para tu negocio: checadas de entrada, salida y descansos, en regla con la ley.",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon_tab.svg",
+    apple: "/icon_app.svg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Reloj Checador",
+    title: "Chekly",
   },
 };
 

@@ -1,6 +1,6 @@
 {
-  "name": "Reloj Checador",
-  "short_name": "Checador",
+  "name": "Chekly",
+  "short_name": "Chekly",
   "description": "Registro de asistencia para tu negocio: checadas de entrada, salida y descansos.",
   "start_url": "/",
   "scope": "/",
@@ -11,13 +11,13 @@
   "lang": "es-MX",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/icon_app.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icon-maskable.svg",
+      "src": "/icon_app.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"

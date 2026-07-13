@@ -5,6 +5,7 @@ import { Boton } from "@/components/ui/button";
 import { Mensaje } from "@/components/ui/mensaje";
 import { TecladoPin } from "@/components/teclado-pin";
 import { CapturaSelfie } from "@/components/captura-selfie";
+import { Logo } from "@/components/logo";
 import { ETIQUETA_EVENTO, type EstadoFichaje, type TipoEvento } from "@/lib/fichaje";
 import type { DocumentoConsentimiento } from "@/lib/consentimiento";
 
@@ -227,6 +228,7 @@ export default function PaginaKiosco() {
   if (fase === "grid") {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-6 px-6 py-12">
+        <Logo ancho={110} className="self-center" />
         <div className="text-center">
           <p className="text-sm text-muted">{info?.companyName}</p>
           <h1 className="text-xl font-semibold text-ink">{info?.workCenterName}</h1>

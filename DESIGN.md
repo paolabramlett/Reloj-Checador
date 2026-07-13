@@ -1,17 +1,17 @@
 <!-- SEED: re-run $impeccable document una vez que exista código (después de construir la pantalla de login) para capturar los tokens y componentes reales. -->
 
 ---
-name: Reloj Checador
+name: Chekly
 description: Registro de asistencia confiable y sencillo para micro y pequeñas empresas mexicanas
 ---
 
-# Design System: Reloj Checador
+# Design System: Chekly
 
 ## 1. Overview
 
 **Creative North Star: "El Sello de Confianza"**
 
-Reloj Checador no se viste de startup ni de trámite de gobierno: se viste de comprobante. La superficie es restringida y casi silenciosa —blanco puro, texto casi negro— para que un solo verde de confianza haga todo el trabajo emocional: es el verde del "aprobado", del check, del semáforo en verde. Cuando aparece, el usuario sabe que algo quedó en regla sin que se lo tengamos que explicar.
+Chekly no se viste de startup ni de trámite de gobierno: se viste de comprobante. La superficie es restringida y casi silenciosa —blanco puro, texto casi negro— para que un solo verde de confianza haga todo el trabajo emocional: es el verde del "aprobado", del check, del semáforo en verde. Cuando aparece, el usuario sabe que algo quedó en regla sin que se lo tengamos que explicar.
 
 La referencia no es Linear ni Notion — es Mercado Pago, WhatsApp Business y Stripe Checkout: herramientas que un dueño de taller o de fonda ya usa a diario, sin curva de aprendizaje, sin vocabulario de startup, con una sola acción obvia por pantalla. El sistema rechaza explícitamente los ERPs de escritorio mexicanos (CONTPAQi, Aspel), el dashboard SaaS genérico con gradientes y espanglish, y los portales de gobierno (SAT, IMSS) — las tres anti-referencias de `PRODUCT.md`. Si el dueño de un taller mecánico de 55 años duda dónde tocar, el sistema falló.
 

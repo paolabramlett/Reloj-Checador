@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Boton } from "@/components/ui/button";
 import { Campo } from "@/components/ui/input";
 import { Mensaje } from "@/components/ui/mensaje";
+import { Logo } from "@/components/logo";
 import { registrarCuenta } from "./actions";
 
 export default function PaginaRegistro() {
@@ -28,9 +29,10 @@ export default function PaginaRegistro() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-12">
+      <Logo ancho={140} className="self-center" />
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-ink">Crea tu cuenta</h1>
-        <p className="text-muted">Registra tu negocio en Reloj Checador.</p>
+        <p className="text-muted">Registra tu negocio en Chekly.</p>
       </div>
 
       <form action={accion} className="flex flex-col gap-4">

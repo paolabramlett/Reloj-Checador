@@ -53,6 +53,7 @@ export async function iniciarCheckout(formData: FormData) {
     mode: "subscription",
     line_items: [{ price: PRECIOS[plan], quantity: 1 }],
     payment_method_types: ["card"],
+    locale: "es",
     success_url: `${SITIO_URL}/panel/facturacion?checkout=exito`,
     cancel_url: `${SITIO_URL}/panel/facturacion?checkout=cancelado`,
   });
@@ -77,6 +78,7 @@ export async function abrirPortal() {
   const session = await stripe.billingPortal.sessions.create({
     customer: data.stripe_customer_id,
     return_url: `${SITIO_URL}/panel/facturacion`,
+    locale: "es",
   });
 
   redirect(session.url);
