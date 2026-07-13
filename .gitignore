@@ -29,3 +29,6 @@ npm-debug.log*
 # supabase local
 supabase/.temp
 supabase/.branches
+
+# worktrees aislados (superpowers:using-git-worktrees)
+.worktrees
