@@ -44,7 +44,12 @@ export async function encolarFichaje(
 
 export async function listarPendientes(): Promise<FichajeEnCola[]> {
   const db = await abrirDB();
-  return db.getAll("fichajes");
+  const items = await db.getAll("fichajes");
+  // getAll() ordena por keyPath ("id", un UUID aleatorio) — sin esto, dos
+  // fichajes encolados casi al mismo tiempo podían enviarse al servidor
+  // en un orden distinto al que pasaron de verdad, disparando anomalías
+  // de secuencia falsas.
+  return items.sort((a, b) => a.deviceTs.localeCompare(b.deviceTs));
 }
 
 export async function contarPendientes(): Promise<number> {

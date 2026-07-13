@@ -4,6 +4,7 @@ import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
 import { ETIQUETA_EVENTO, type TipoEvento } from "@/lib/fichaje";
 import { marcasDelEvento, ETIQUETA_ORIGEN } from "@/lib/marcas";
 import { obtenerAccesoAdmin } from "@/lib/facturacion";
+import { formatearFechaHora } from "@/lib/formato-fecha";
 
 function celdaCsv(valor: string) {
   return `"${valor.replace(/"/g, '""')}"`;
@@ -31,7 +32,10 @@ export async function GET(request: NextRequest) {
     .eq("company_id", empresa.id)
     .gte("device_ts", `${desde}T00:00:00Z`)
     .lte("device_ts", `${hasta}T23:59:59Z`)
-    .order("server_ts", { ascending: true });
+    // Orden por device_ts (cuándo pasó de verdad), no server_ts (cuándo
+    // llegó) — dos fichajes casi simultáneos pueden llegar al servidor
+    // en desorden y confundir la lectura cronológica de la tabla.
+    .order("device_ts", { ascending: true });
 
   if (empleadoId) consulta = consulta.eq("employee_id", empleadoId);
 
@@ -55,8 +59,8 @@ export async function GET(request: NextRequest) {
       celdaCsv(centro?.name ?? ""),
       celdaCsv(ETIQUETA_EVENTO[evento.event_type as TipoEvento] ?? evento.event_type),
       celdaCsv(ETIQUETA_ORIGEN[evento.source] ?? evento.source),
-      celdaCsv(new Date(evento.device_ts).toLocaleString("es-MX")),
-      celdaCsv(new Date(evento.server_ts).toLocaleString("es-MX")),
+      celdaCsv(formatearFechaHora(evento.device_ts)),
+      celdaCsv(formatearFechaHora(evento.server_ts)),
       celdaCsv(marcasDelEvento(evento).join("; ")),
     ].join(",");
   });

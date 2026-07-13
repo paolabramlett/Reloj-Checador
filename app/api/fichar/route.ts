@@ -87,11 +87,16 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // device_ts (cuándo pasó de verdad), no server_ts (cuándo llegó): dos
+  // fichajes casi simultáneos pueden llegar al servidor en desorden, y
+  // ordenar por server_ts hacía que el estado "anterior" fuera el
+  // equivocado — marcando como anomalía una secuencia que en realidad
+  // era válida.
   const { data: ultimoEvento } = await supabase
     .from("clock_events")
     .select("event_type")
     .eq("employee_id", empleado.id)
-    .order("server_ts", { ascending: false })
+    .order("device_ts", { ascending: false })
     .limit(1)
     .maybeSingle();
 

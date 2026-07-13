@@ -32,8 +32,9 @@ export default async function PaginaDetalleHoras({
       .from("clock_events")
       .select("event_type, source, device_ts, server_ts, flag_late_sync, flag_clock_skew, flag_out_of_fence, flag_sequence_anomaly")
       .eq("employee_id", id)
-      .gte("server_ts", `${inicioSemana}T00:00:00Z`)
-      .order("server_ts", { ascending: true }),
+      .gte("device_ts", `${inicioSemana}T00:00:00Z`)
+      // device_ts (cuándo pasó), no server_ts (cuándo llegó al servidor).
+      .order("device_ts", { ascending: true }),
   ]);
 
   if (!empleado) notFound();
@@ -63,6 +64,7 @@ export default async function PaginaDetalleHoras({
                 <span className="font-medium text-ink">{ETIQUETA_EVENTO[evento.event_type as TipoEvento]}</span>
                 <span className="text-sm text-muted">
                   {new Date(evento.device_ts).toLocaleString("es-MX", {
+                    timeZone: "America/Mexico_City",
                     weekday: "short",
                     hour: "2-digit",
                     minute: "2-digit",

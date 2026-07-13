@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Boton } from "@/components/ui/button";
 import { Mensaje } from "@/components/ui/mensaje";
 import { distanciaMetros } from "@/lib/geo";
@@ -37,8 +37,18 @@ export function PantallaFichaje({ estadoInicial, centro }: PantallaFichajeProps)
   const [error, setError] = useState<string | null>(null);
   const [confirmacion, setConfirmacion] = useState<string | null>(null);
   const { pendientes, encolarYSincronizar } = useColaFichajes();
+  // En ref, no en state: el cambio de estado optimista muestra el botón
+  // siguiente antes de que termine este fichaje, y sin este guard un
+  // segundo toque muy rápido podía disparar otro fichar() en paralelo —
+  // dos solicitudes casi simultáneas pueden llegar al servidor en
+  // cualquier orden y disparar una anomalía de secuencia falsa.
+  const enviandoRef = useRef(false);
+  const [enviando, setEnviando] = useState(false);
 
   async function fichar(tipo: TipoEvento) {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
+    setEnviando(true);
     setError(null);
     setConfirmacion(null);
     setCargando(tipo);
@@ -77,6 +87,8 @@ export function PantallaFichaje({ estadoInicial, centro }: PantallaFichajeProps)
       setError("No pudimos obtener tu ubicación. Activa el GPS e intenta de nuevo.");
     } finally {
       setCargando(null);
+      enviandoRef.current = false;
+      setEnviando(false);
     }
   }
 
@@ -99,20 +111,21 @@ export function PantallaFichaje({ estadoInicial, centro }: PantallaFichajeProps)
       {error && <Mensaje tono="error">{error}</Mensaje>}
 
       {estado === "out" && (
-        <Boton onClick={() => fichar("clock_in")} cargando={cargando === "clock_in"}>
+        <Boton onClick={() => fichar("clock_in")} cargando={cargando === "clock_in"} disabled={enviando}>
           Marcar entrada
         </Boton>
       )}
 
       {estado === "working" && (
         <div className="flex flex-col gap-3">
-          <Boton onClick={() => fichar("clock_out")} cargando={cargando === "clock_out"}>
+          <Boton onClick={() => fichar("clock_out")} cargando={cargando === "clock_out"} disabled={enviando}>
             Marcar salida
           </Boton>
           <Boton
             variante="secundario"
             onClick={() => fichar("break_start")}
             cargando={cargando === "break_start"}
+            disabled={enviando}
           >
             Iniciar descanso
           </Boton>
@@ -120,7 +133,7 @@ export function PantallaFichaje({ estadoInicial, centro }: PantallaFichajeProps)
       )}
 
       {estado === "on_break" && (
-        <Boton onClick={() => fichar("break_end")} cargando={cargando === "break_end"}>
+        <Boton onClick={() => fichar("break_end")} cargando={cargando === "break_end"} disabled={enviando}>
           Terminar descanso
         </Boton>
       )}

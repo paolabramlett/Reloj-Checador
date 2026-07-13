@@ -8,6 +8,7 @@ import { FormularioAnotacion } from "@/components/formulario-anotacion";
 import { Boton } from "@/components/ui/button";
 import { obtenerAccesoAdmin } from "@/lib/facturacion";
 import { BloqueoFacturacion } from "@/components/bloqueo-facturacion";
+import { formatearFechaHoraCorta, formatearFecha } from "@/lib/formato-fecha";
 
 function haceDias(dias: number): string {
   const fecha = new Date();
@@ -45,7 +46,10 @@ export default async function PaginaHistorial({
     .eq("company_id", empresa.id)
     .gte("device_ts", `${fechaDesde}T00:00:00Z`)
     .lte("device_ts", `${fechaHasta}T23:59:59Z`)
-    .order("server_ts", { ascending: false });
+    // device_ts (cuándo pasó), no server_ts (cuándo llegó al servidor) —
+    // dos fichajes casi simultáneos pueden llegar en desorden y romper
+    // la lectura cronológica de la lista.
+    .order("device_ts", { ascending: false });
 
   if (empleadoId) consulta = consulta.eq("employee_id", empleadoId);
 
@@ -152,14 +156,7 @@ export default async function PaginaHistorial({
                   <span className="font-medium text-ink">
                     {empleadoNombre} — {ETIQUETA_EVENTO[evento.event_type as TipoEvento]}
                   </span>
-                  <span className="text-sm text-muted">
-                    {new Date(evento.device_ts).toLocaleString("es-MX", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+                  <span className="text-sm text-muted">{formatearFechaHoraCorta(evento.device_ts)}</span>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-muted">
                   <span>{ETIQUETA_ORIGEN[evento.source] ?? evento.source}</span>
@@ -175,7 +172,7 @@ export default async function PaginaHistorial({
                     {misAnotaciones.map((anotacion, i) => (
                       <p key={i}>
                         <span className="font-medium">Corrección</span> (
-                        {new Date(anotacion.created_at).toLocaleDateString("es-MX")}): {anotacion.motivo}
+                        {formatearFecha(anotacion.created_at)}): {anotacion.motivo}
                       </p>
                     ))}
                   </div>

@@ -65,11 +65,15 @@ export async function POST(request: Request) {
 
   if (!resultado.ok) return NextResponse.json(resultado, { status: 401 });
 
+  // device_ts, no server_ts — ver la misma nota en api/fichar/route.ts.
+  // Acá coinciden casi siempre (el kiosco no tiene reloj propio del
+  // cliente), pero un empleado que también usa su teléfono personal
+  // puede mezclar ambos orígenes.
   const { data: ultimoEvento } = await admin
     .from("clock_events")
     .select("event_type")
     .eq("employee_id", empleado.id)
-    .order("server_ts", { ascending: false })
+    .order("device_ts", { ascending: false })
     .limit(1)
     .maybeSingle();
 

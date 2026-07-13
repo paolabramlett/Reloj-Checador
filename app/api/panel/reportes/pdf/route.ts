@@ -5,6 +5,7 @@ import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
 import { ETIQUETA_EVENTO, type TipoEvento } from "@/lib/fichaje";
 import { marcasDelEvento, ETIQUETA_ORIGEN } from "@/lib/marcas";
 import { obtenerAccesoAdmin } from "@/lib/facturacion";
+import { formatearFechaHora } from "@/lib/formato-fecha";
 
 const COLUMNAS = [
   { titulo: "Empleado", ancho: 100 },
@@ -98,7 +99,9 @@ export async function GET(request: NextRequest) {
     .eq("company_id", empresa.id)
     .gte("device_ts", `${desde}T00:00:00Z`)
     .lte("device_ts", `${hasta}T23:59:59Z`)
-    .order("server_ts", { ascending: true });
+    // device_ts (cuándo pasó), no server_ts (cuándo llegó al servidor) —
+    // ver nota en reportes/csv/route.ts.
+    .order("device_ts", { ascending: true });
 
   if (empleadoId) consulta = consulta.eq("employee_id", empleadoId);
 
@@ -110,8 +113,8 @@ export async function GET(request: NextRequest) {
       empleado?.full_name ?? "",
       ETIQUETA_EVENTO[evento.event_type as TipoEvento] ?? evento.event_type,
       ETIQUETA_ORIGEN[evento.source] ?? evento.source,
-      new Date(evento.device_ts).toLocaleString("es-MX"),
-      new Date(evento.server_ts).toLocaleString("es-MX"),
+      formatearFechaHora(evento.device_ts),
+      formatearFechaHora(evento.server_ts),
       marcasDelEvento(evento).join(", "),
     ];
   });
