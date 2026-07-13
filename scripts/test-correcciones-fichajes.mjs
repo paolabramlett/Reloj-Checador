@@ -80,6 +80,32 @@ try {
       ...flags,
     }).select().single();
 
+  // Empleados aislados para escenarios que no deben interferir con los
+  // eventos de empleadoId (comparten compañía pero no historial de fichajes).
+  const insertarEventoPara = (empId, eventType, deviceTs, flags = {}) =>
+    admin.from("clock_events").insert({
+      id: randomUUID(),
+      company_id: companyId,
+      employee_id: empId,
+      work_center_id: workCenterId,
+      event_type: eventType,
+      source: "personal_phone",
+      device_ts: deviceTs,
+      server_ts: deviceTs,
+      lat: 19.4,
+      lng: -99.1,
+      ...flags,
+    }).select().single();
+
+  const crearEmpleado = async (nombre) => {
+    const { data } = await cliente
+      .from("employees")
+      .insert({ company_id: companyId, work_center_id: workCenterId, full_name: nombre })
+      .select()
+      .single();
+    return data.id;
+  };
+
   // 2. Umbral configurable con default 16.
   const { data: settings } = await admin.from("system_settings").select("open_shift_threshold_hours").single();
   check("open_shift_threshold_hours existe con default 16", Number(settings?.open_shift_threshold_hours) === 16, `dio ${settings?.open_shift_threshold_hours}`);
@@ -157,40 +183,18 @@ try {
 
   // 10. Caso "cierre marcado como anomalía": clock_in hace 20h + clock_out
   // flageado (simula lo que el auto-flag de las Tasks 3/4 va a producir).
-  const { data: clockInAnomalia } = await insertarEvento("clock_in", new Date(Date.now() - 20 * 3600_000 - 3600_000).toISOString());
-  await insertarEvento("clock_out", new Date(Date.now() - 3600_000).toISOString(), { flag_sequence_anomaly: true });
+  // Empleado aislado: el paso 8 insertó, para empleadoId, un clock_in más
+  // reciente (hace 18h) que el clockInAnomalia de aquí (hace 21h); si
+  // compartieran empleado, la búsqueda LATERAL de "apertura más cercana"
+  // del CTE anomalos encontraría ese clock_in de RLS en vez de este.
+  const empAnomaliaId = await crearEmpleado("Anomalia Cierre");
+  const { data: clockInAnomalia } = await insertarEventoPara(empAnomaliaId, "clock_in", new Date(Date.now() - 20 * 3600_000 - 3600_000).toISOString());
+  await insertarEventoPara(empAnomaliaId, "clock_out", new Date(Date.now() - 3600_000).toISOString(), { flag_sequence_anomaly: true });
 
   const { data: pendientesAnomalia } = await admin.rpc("tramos_pendientes_revision", { p_company_id: companyId });
   const filaAnomalia = (pendientesAnomalia ?? []).find((p) => p.opens_event_id === clockInAnomalia.id);
   check("tramos_pendientes_revision detecta el cierre marcado como anomalía", !!filaAnomalia, JSON.stringify(pendientesAnomalia));
   check("El motivo reportado es 'anomalia'", filaAnomalia?.motivo === "anomalia", filaAnomalia?.motivo);
-
-  // Empleados aislados para las pruebas de bugs de atribución (evitan
-  // interferir con los eventos de los pasos anteriores, que comparten
-  // empleadoId y la semana actual).
-  const insertarEventoPara = (empId, eventType, deviceTs, flags = {}) =>
-    admin.from("clock_events").insert({
-      id: randomUUID(),
-      company_id: companyId,
-      employee_id: empId,
-      work_center_id: workCenterId,
-      event_type: eventType,
-      source: "personal_phone",
-      device_ts: deviceTs,
-      server_ts: deviceTs,
-      lat: 19.4,
-      lng: -99.1,
-      ...flags,
-    }).select().single();
-
-  const crearEmpleado = async (nombre) => {
-    const { data } = await cliente
-      .from("employees")
-      .insert({ company_id: companyId, work_center_id: workCenterId, full_name: nombre })
-      .select()
-      .single();
-    return data.id;
-  };
 
   // 11. Bug 1 (rama "abiertos"): un clock_in válido seguido de un
   // segundo clock_in flageado (duplicado/transición inválida), sin
