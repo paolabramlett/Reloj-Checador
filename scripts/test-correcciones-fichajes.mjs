@@ -164,6 +164,135 @@ try {
   const filaAnomalia = (pendientesAnomalia ?? []).find((p) => p.opens_event_id === clockInAnomalia.id);
   check("tramos_pendientes_revision detecta el cierre marcado como anomalía", !!filaAnomalia, JSON.stringify(pendientesAnomalia));
   check("El motivo reportado es 'anomalia'", filaAnomalia?.motivo === "anomalia", filaAnomalia?.motivo);
+
+  // Empleados aislados para las pruebas de bugs de atribución (evitan
+  // interferir con los eventos de los pasos anteriores, que comparten
+  // empleadoId y la semana actual).
+  const insertarEventoPara = (empId, eventType, deviceTs, flags = {}) =>
+    admin.from("clock_events").insert({
+      id: randomUUID(),
+      company_id: companyId,
+      employee_id: empId,
+      work_center_id: workCenterId,
+      event_type: eventType,
+      source: "personal_phone",
+      device_ts: deviceTs,
+      server_ts: deviceTs,
+      lat: 19.4,
+      lng: -99.1,
+      ...flags,
+    }).select().single();
+
+  const crearEmpleado = async (nombre) => {
+    const { data } = await cliente
+      .from("employees")
+      .insert({ company_id: companyId, work_center_id: workCenterId, full_name: nombre })
+      .select()
+      .single();
+    return data.id;
+  };
+
+  // 11. Bug 1 (rama "abiertos"): un clock_in válido seguido de un
+  // segundo clock_in flageado (duplicado/transición inválida), sin
+  // cierre. weekly_hours_for_employee solo llega a asignar
+  // v_shift_start_id desde un clock_in NO flageado, así que
+  // tramos_pendientes_revision debe señalar el PRIMER clock_in (el no
+  // flageado) como opens_event_id — si señalara el segundo, una
+  // corrección del admin sobre ese id nunca sería encontrada por
+  // weekly_hours_for_employee.
+  const empBug1AbiertoId = await crearEmpleado("Bug1 Abierto");
+  const { data: e1 } = await insertarEventoPara(empBug1AbiertoId, "clock_in", new Date(Date.now() - 20 * 3600_000).toISOString());
+  const { data: e2 } = await insertarEventoPara(empBug1AbiertoId, "clock_in", new Date(Date.now() - 19 * 3600_000).toISOString(), { flag_sequence_anomaly: true });
+
+  const { data: pendientesBug1a } = await admin.rpc("tramos_pendientes_revision", { p_company_id: companyId });
+  const filaBug1Abierto = (pendientesBug1a ?? []).find((p) => p.employee_id === empBug1AbiertoId && p.motivo === "abierto");
+  check(
+    "Bug1 (abiertos): opens_event_id es el clock_in NO flageado, no el duplicado flageado",
+    filaBug1Abierto?.opens_event_id === e1.id && filaBug1Abierto?.opens_event_id !== e2.id,
+    JSON.stringify(filaBug1Abierto),
+  );
+
+  // 12. Bug 1 (rama "anomalos"): clock_in válido, clock_in duplicado
+  // flageado inmediatamente después, y luego un clock_out flageado que
+  // cierra. La búsqueda LATERAL del evento de apertura debe saltarse el
+  // duplicado flageado y encontrar el clock_in original.
+  const empBug1AnomaliaId = await crearEmpleado("Bug1 Anomalia");
+  const t0Anomalia = Date.now() - 5 * 3600_000;
+  const { data: e3 } = await insertarEventoPara(empBug1AnomaliaId, "clock_in", new Date(t0Anomalia).toISOString());
+  await insertarEventoPara(empBug1AnomaliaId, "clock_in", new Date(t0Anomalia + 60_000).toISOString(), { flag_sequence_anomaly: true });
+  await insertarEventoPara(empBug1AnomaliaId, "clock_out", new Date(t0Anomalia + 2 * 3600_000).toISOString(), { flag_sequence_anomaly: true });
+
+  const { data: pendientesBug1b } = await admin.rpc("tramos_pendientes_revision", { p_company_id: companyId });
+  const filaBug1Anomalia = (pendientesBug1b ?? []).find((p) => p.employee_id === empBug1AnomaliaId && p.motivo === "anomalia");
+  check(
+    "Bug1 (anomalos): opens_event_id es el clock_in original NO flageado, no el duplicado flageado",
+    filaBug1Anomalia?.opens_event_id === e3.id,
+    JSON.stringify(filaBug1Anomalia),
+  );
+
+  // 13. Bug 2: un descanso no debe sobrevivir al cierre de su turno.
+  // Secuencia dentro de la misma semana, para un empleado aislado:
+  //   S1: clock_in 08:00 -> break_start(B1) 10:00 -> clock_out FLAGEADO
+  //       10:05 (cierre inválido mientras el descanso seguía abierto).
+  //       v_shift_start_id (S1) queda sin corrección => S1 se excluye
+  //       por completo del cómputo (0h).
+  //   Se corrige B1 (el descanso colgado) con corrected_closing_ts =
+  //       10:30 — una corrección legítima que un admin podría cargar
+  //       más tarde para ese descanso específico.
+  //   S2: turno nuevo y limpio, sin relación con S1/B1:
+  //       clock_in 14:00 -> break_end FLAGEADO 15:00 (espurio, sin
+  //       break_start propio de S2 — es el evento que, si
+  //       v_break_start_id no se hubiera reseteado al cerrar S1, iría a
+  //       buscar la corrección de B1 y restaría sus 30 min de S2) ->
+  //       clock_out limpio 16:00.
+  //
+  // Matemática esperada:
+  //   S1: excluido (flageado, sin corrección) => 0h
+  //   S2: 14:00 a 16:00 = 2h, menos v_break_accum.
+  //     - Corregido: v_break_start_id se resetea al cerrar S1, así que
+  //       el break_end flageado de las 15:00 no encuentra un descanso
+  //       abierto que cerrar (no-op) => v_break_accum = 0 => S2 = 2h.
+  //     - Sin corregir (bug): v_break_start_id seguía apuntando a B1,
+  //       así que el break_end flageado de las 15:00 encuentra la
+  //       corrección de B1 (10:00 -> 10:30 = 30 min) y la resta de S2
+  //       => S2 = 1.5h (incorrecto).
+  //   Total esperado de la semana = 0h + 2h = 2h.
+  const empBug2Id = await crearEmpleado("Bug2 Semana");
+  const t1S1 = new Date(lunes.getTime() + 8 * 3600_000).toISOString(); // lunes 08:00
+  const t2B1 = new Date(lunes.getTime() + 10 * 3600_000).toISOString(); // lunes 10:00
+  const t3ClockOutFlag = new Date(lunes.getTime() + 10 * 3600_000 + 5 * 60_000).toISOString(); // lunes 10:05
+  const tCorreccionB1 = new Date(lunes.getTime() + 10 * 3600_000 + 30 * 60_000).toISOString(); // lunes 10:30
+  const t4S2 = new Date(lunes.getTime() + 14 * 3600_000).toISOString(); // lunes 14:00
+  const t5BreakEndEspurio = new Date(lunes.getTime() + 15 * 3600_000).toISOString(); // lunes 15:00
+  const t6ClockOutS2 = new Date(lunes.getTime() + 16 * 3600_000).toISOString(); // lunes 16:00
+
+  await insertarEventoPara(empBug2Id, "clock_in", t1S1);
+  const { data: b1 } = await insertarEventoPara(empBug2Id, "break_start", t2B1);
+  await insertarEventoPara(empBug2Id, "clock_out", t3ClockOutFlag, { flag_sequence_anomaly: true });
+
+  const { error: errorCorreccionB1 } = await cliente.from("clock_event_corrections").insert({
+    company_id: companyId,
+    employee_id: empBug2Id,
+    opens_event_id: b1.id,
+    corrected_closing_ts: tCorreccionB1,
+    reason: "Descanso colgado tras un cierre inválido; el empleado confirmó que duró 30 minutos.",
+    created_by: ownerId,
+  });
+  check("Bug2: se pudo insertar la corrección del descanso colgado (B1)", !errorCorreccionB1, errorCorreccionB1?.message);
+
+  await insertarEventoPara(empBug2Id, "clock_in", t4S2);
+  await insertarEventoPara(empBug2Id, "break_end", t5BreakEndEspurio, { flag_sequence_anomaly: true });
+  await insertarEventoPara(empBug2Id, "clock_out", t6ClockOutS2);
+
+  const { data: horasBug2 } = await admin.rpc("weekly_hours_for_employee", {
+    p_employee_id: empBug2Id,
+    p_week_start: inicioSemana,
+  });
+  check(
+    "Bug2: el descanso colgado de S1 no se filtra a S2 — la semana da exactamente 2h",
+    Number(horasBug2) === 2,
+    `dio ${horasBug2}`,
+  );
 } finally {
   if (companyId) {
     await admin.from("clock_event_corrections").delete().eq("company_id", companyId);

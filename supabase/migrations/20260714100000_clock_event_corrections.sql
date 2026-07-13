@@ -134,12 +134,22 @@ begin
           v_shift_start := null;
           v_shift_start_id := null;
           v_break_accum := '0'::interval;
+          -- Un descanso no puede sobrevivir a su turno: al cerrar el
+          -- turno (aunque el cierre esté flageado) siempre se limpia
+          -- cualquier v_break_start(_id) colgado, para que no se filtre
+          -- a un turno posterior no relacionado dentro de la misma
+          -- semana.
+          v_break_start := null;
+          v_break_start_id := null;
         end if;
       elsif v_shift_start is not null then
         v_total := v_total + (v_event.device_ts - v_shift_start) - v_break_accum;
         v_shift_start := null;
         v_shift_start_id := null;
         v_break_accum := '0'::interval;
+        -- Mismo motivo: un descanso no puede sobrevivir a su turno.
+        v_break_start := null;
+        v_break_start_id := null;
       end if;
     end if;
   end loop;
@@ -197,10 +207,21 @@ begin
 
   return query
   with ultimo_evento as (
+    -- Solo se usa para el caso "abiertos" (más abajo). Si el evento más
+    -- reciente de un empleado es un evento de APERTURA (clock_in o
+    -- break_start) flageado como anomalía, se ignora y se busca el
+    -- siguiente más reciente: weekly_hours_for_employee nunca asigna
+    -- v_shift_start_id/v_break_start_id desde un evento de apertura
+    -- flageado, así que reportar ese id como opens_event_id volvería
+    -- inútil cualquier corrección hecha sobre él (la función nunca la
+    -- encontraría). Un evento de CIERRE (clock_out/break_end) flageado
+    -- sí debe seguir contando como "el último evento" — ese caso ya lo
+    -- cubre por separado la rama "anomalos".
     select distinct on (ce.employee_id)
       ce.employee_id, ce.id, ce.event_type, ce.device_ts
     from public.clock_events ce
     where ce.company_id = p_company_id
+      and not (ce.event_type in ('clock_in', 'break_start') and ce.flag_sequence_anomaly)
     order by ce.employee_id, ce.device_ts desc
   ),
   abiertos as (
@@ -239,11 +260,18 @@ begin
     from cierres_anomalos ca
     join public.employees e on e.id = ca.employee_id
     cross join lateral (
+      -- Igual que en ultimo_evento: solo un evento de apertura NO
+      -- flageado es candidato, porque es el único tipo de evento que
+      -- weekly_hours_for_employee llega a asignar a
+      -- v_shift_start_id/v_break_start_id. Si el evento de apertura más
+      -- reciente antes del cierre anómalo está flageado (p. ej. un
+      -- clock_in duplicado/inválido), se ignora y se busca el anterior.
       select ce2.id, ce2.device_ts, ce2.event_type
       from public.clock_events ce2
       where ce2.employee_id = ca.employee_id
         and ce2.event_type = case ca.closes_type when 'clock_out' then 'clock_in' else 'break_start' end
         and ce2.device_ts < ca.closes_device_ts
+        and not ce2.flag_sequence_anomaly
       order by ce2.device_ts desc
       limit 1
     ) apertura
