@@ -119,6 +119,17 @@ begin
         v_break_start_id := null;
       end if;
     elsif v_event.event_type = 'clock_out' then
+      -- Un descanso no puede sobrevivir a su turno: cualquier clock_out
+      -- (flageado o no, y sea o no que haya un turno rastreado en curso)
+      -- siempre limpia primero cualquier v_break_start(_id) colgado, para
+      -- que no se filtre a un turno posterior no relacionado dentro de la
+      -- misma semana. Esto cubre también el caso de un descanso abierto
+      -- mientras v_shift_start era null (p. ej. tras un clock_in
+      -- duplicado flageado), que antes solo se limpiaba dentro de las
+      -- ramas de abajo y podía quedar colgado si ninguna de las dos
+      -- aplicaba.
+      v_break_start := null;
+      v_break_start_id := null;
       if v_event.flag_sequence_anomaly then
         -- Cierre flageado: usar la corrección vigente para el turno que
         -- abrió, si existe.
@@ -134,22 +145,12 @@ begin
           v_shift_start := null;
           v_shift_start_id := null;
           v_break_accum := '0'::interval;
-          -- Un descanso no puede sobrevivir a su turno: al cerrar el
-          -- turno (aunque el cierre esté flageado) siempre se limpia
-          -- cualquier v_break_start(_id) colgado, para que no se filtre
-          -- a un turno posterior no relacionado dentro de la misma
-          -- semana.
-          v_break_start := null;
-          v_break_start_id := null;
         end if;
       elsif v_shift_start is not null then
         v_total := v_total + (v_event.device_ts - v_shift_start) - v_break_accum;
         v_shift_start := null;
         v_shift_start_id := null;
         v_break_accum := '0'::interval;
-        -- Mismo motivo: un descanso no puede sobrevivir a su turno.
-        v_break_start := null;
-        v_break_start_id := null;
       end if;
     end if;
   end loop;

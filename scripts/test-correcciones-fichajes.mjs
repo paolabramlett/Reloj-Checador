@@ -297,6 +297,150 @@ try {
     Number(horasBug2) === 2,
     `dio ${horasBug2}`,
   );
+
+  // 14. Fix (segunda ronda de review): un break_start registrado SIN
+  // turno rastreado (v_shift_start_id null, p. ej. tras un clock_in
+  // duplicado flageado) también debe limpiarse al primer clock_out que
+  // llegue, aunque ese clock_out esté flageado y tampoco coincida con
+  // ninguna de las dos ramas de seguimiento de turno. Antes, el reset de
+  // v_break_start/v_break_start_id vivía DENTRO de esas dos ramas, así
+  // que un clock_out que no calzara en ninguna (como el de aquí) lo
+  // dejaba colgado para filtrarse a un turno posterior no relacionado —
+  // igual que el Bug 2 original, pero alcanzable vía un descanso "sin
+  // turno".
+  // Secuencia dentro de la misma semana, para un empleado aislado:
+  //   Sd: clock_in FLAGEADO (duplicado) 06:00 -> nunca fija
+  //       v_shift_start_id -> break_start(Bd) 06:15 (sin turno
+  //       rastreado) -> clock_out FLAGEADO 06:20 (v_shift_start_id es
+  //       null, así que no calza en NINGUNA de las dos ramas de
+  //       clock_out).
+  //   Se corrige Bd (el descanso colgado) con corrected_closing_ts =
+  //       06:45 (30 min) — una corrección legítima que un admin podría
+  //       cargar después para ese descanso.
+  //   S2: turno nuevo y limpio, sin relación con Sd/Bd:
+  //       clock_in 09:00 -> break_end FLAGEADO 09:30 (espurio, sin
+  //       break_start propio de S2 — es el evento que, si
+  //       v_break_start_id no se hubiera reseteado al procesar el
+  //       clock_out flageado de Sd, iría a buscar la corrección de Bd y
+  //       restaría sus 30 min de S2) -> clock_out limpio 11:00.
+  //
+  // Matemática esperada:
+  //   Sd: nunca se rastreó como turno (clock_in de apertura estaba
+  //       flageado) => 0h, y el clock_out flageado tampoco suma nada
+  //       porque v_shift_start_id es null.
+  //   S2: 09:00 a 11:00 = 2h, menos v_break_accum.
+  //     - Corregido: v_break_start_id se resetea de forma incondicional
+  //       al procesar el clock_out de Sd, así que el break_end flageado
+  //       de las 09:30 no encuentra un descanso abierto que cerrar
+  //       (no-op) => v_break_accum = 0 => S2 = 2h.
+  //     - Sin corregir (bug): v_break_start_id seguía apuntando a Bd,
+  //       así que el break_end flageado de las 09:30 encuentra la
+  //       corrección de Bd (06:15 -> 06:45 = 30 min) y la resta de S2
+  //       => S2 = 1.5h (incorrecto).
+  //   Total esperado de la semana = 0h + 2h = 2h.
+  const empFix1Id = await crearEmpleado("Fix1 Descanso Sin Turno");
+  const tSdClockInFlag = new Date(lunes.getTime() + 6 * 3600_000).toISOString(); // lunes 06:00
+  const tBd = new Date(lunes.getTime() + 6 * 3600_000 + 15 * 60_000).toISOString(); // lunes 06:15
+  const tSdClockOutFlag = new Date(lunes.getTime() + 6 * 3600_000 + 20 * 60_000).toISOString(); // lunes 06:20
+  const tCorreccionBd = new Date(lunes.getTime() + 6 * 3600_000 + 45 * 60_000).toISOString(); // lunes 06:45
+  const tS2In = new Date(lunes.getTime() + 9 * 3600_000).toISOString(); // lunes 09:00
+  const tS2BreakEndEspurio = new Date(lunes.getTime() + 9 * 3600_000 + 30 * 60_000).toISOString(); // lunes 09:30
+  const tS2ClockOut = new Date(lunes.getTime() + 11 * 3600_000).toISOString(); // lunes 11:00
+
+  await insertarEventoPara(empFix1Id, "clock_in", tSdClockInFlag, { flag_sequence_anomaly: true });
+  const { data: bd } = await insertarEventoPara(empFix1Id, "break_start", tBd);
+  await insertarEventoPara(empFix1Id, "clock_out", tSdClockOutFlag, { flag_sequence_anomaly: true });
+
+  const { error: errorCorreccionBd } = await cliente.from("clock_event_corrections").insert({
+    company_id: companyId,
+    employee_id: empFix1Id,
+    opens_event_id: bd.id,
+    corrected_closing_ts: tCorreccionBd,
+    reason: "Descanso colgado sin turno rastreado; el empleado confirmó que duró 30 minutos.",
+    created_by: ownerId,
+  });
+  check("Fix1: se pudo insertar la corrección del descanso sin turno (Bd)", !errorCorreccionBd, errorCorreccionBd?.message);
+
+  await insertarEventoPara(empFix1Id, "clock_in", tS2In);
+  await insertarEventoPara(empFix1Id, "break_end", tS2BreakEndEspurio, { flag_sequence_anomaly: true });
+  await insertarEventoPara(empFix1Id, "clock_out", tS2ClockOut);
+
+  const { data: horasFix1 } = await admin.rpc("weekly_hours_for_employee", {
+    p_employee_id: empFix1Id,
+    p_week_start: inicioSemana,
+  });
+  check(
+    "Fix1: el descanso sin turno rastreado no se filtra a S2 — la semana da exactamente 2h",
+    Number(horasFix1) === 2,
+    `dio ${horasFix1}`,
+  );
+
+  // 15. RLS cruzado entre empresas: una segunda empresa (con su propio
+  // owner y empleado) no debe poder leer ni insertar correcciones de la
+  // primera empresa.
+  const stampB = `${stamp}-b`;
+  const emailOwnerB = `correcciones-b-${stampB}@mailinator.com`;
+  const { data: uB } = await admin.auth.admin.createUser({ email: emailOwnerB, password, email_confirm: true });
+  const ownerBId = uB.user.id;
+  try {
+    const clienteB = createClient(URL_, ANON, { auth: { persistSession: false } });
+    await clienteB.auth.signInWithPassword({ email: emailOwnerB, password });
+
+    const { data: companyBId } = await clienteB.rpc("create_company_with_owner", { company_name: "Empresa Correcciones B" });
+    const { data: centroB } = await clienteB
+      .from("work_centers")
+      .insert({ company_id: companyBId, name: "Matriz B", lat: 19.4, lng: -99.1, geofence_radius_m: 100 })
+      .select()
+      .single();
+
+    const empleadoEmailB = `correcciones-empleado-b-${stampB}@mailinator.com`;
+    const { data: euB } = await admin.auth.admin.createUser({ email: empleadoEmailB, password, email_confirm: true });
+    const empleadoUserBId = euB.user.id;
+    const { data: empB } = await clienteB
+      .from("employees")
+      .insert({ company_id: companyBId, work_center_id: centroB.id, full_name: "Empleado Correcciones B", auth_user_id: empleadoUserBId })
+      .select()
+      .single();
+
+    try {
+      // (a) Company B no puede LEER una corrección de la Company A.
+      const { data: lecturaCruzada, error: errorLecturaCruzada } = await clienteB
+        .from("clock_event_corrections")
+        .select("id")
+        .eq("id", correccion.id);
+      check(
+        "RLS cruzado: un owner de otra empresa NO puede leer una corrección ajena",
+        !errorLecturaCruzada && (lecturaCruzada ?? []).length === 0,
+        JSON.stringify({ errorLecturaCruzada, lecturaCruzada }),
+      );
+
+      // (b) Company B no puede INSERTAR una corrección que referencia un
+      // opens_event_id de un clock_event de la Company A — el check
+      // exists() de la política de insert exige que ese clock_event
+      // tenga el mismo company_id/employee_id que la fila insertada, así
+      // que aunque se declare company_id/employee_id de B, no encuentra
+      // coincidencia y la política falla.
+      const { error: errorInsertCruzado } = await clienteB.from("clock_event_corrections").insert({
+        company_id: companyBId,
+        employee_id: empB.id,
+        opens_event_id: clockInAbierto.id,
+        corrected_closing_ts: new Date().toISOString(),
+        reason: "intento cruzado no autorizado",
+        created_by: ownerBId,
+      });
+      check("RLS cruzado: un owner de otra empresa NO puede insertar una corrección referenciando un evento ajeno", !!errorInsertCruzado, errorInsertCruzado?.message);
+    } finally {
+      await admin.from("clock_event_corrections").delete().eq("company_id", companyBId);
+      await admin.from("clock_events").delete().eq("company_id", companyBId);
+      await admin.from("employees").delete().eq("company_id", companyBId);
+      await admin.from("work_centers").delete().eq("company_id", companyBId);
+      await admin.from("company_members").delete().eq("company_id", companyBId);
+      await admin.from("companies").delete().eq("id", companyBId);
+      await admin.auth.admin.deleteUser(empleadoUserBId);
+    }
+  } finally {
+    await admin.auth.admin.deleteUser(ownerBId);
+  }
 } finally {
   if (companyId) {
     await admin.from("clock_event_corrections").delete().eq("company_id", companyId);
