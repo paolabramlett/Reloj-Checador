@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { estadoDesdeUltimoEvento, type TipoEvento } from "@/lib/fichaje";
@@ -72,6 +73,10 @@ export default async function PaginaMiCuenta() {
         estadoInicial={estadoInicial}
         centro={{ lat: centro.lat, lng: centro.lng, geofenceRadiusM: centro.geofence_radius_m }}
       />
+
+      <Link href="/mi-cuenta/historial" className="text-center text-sm font-medium text-primary hover:underline">
+        Ver mi historial
+      </Link>
 
       <form action={cerrarSesion}>
         <Boton type="submit" variante="secundario">
