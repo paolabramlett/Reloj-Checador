@@ -81,10 +81,14 @@ export async function POST(request: Request) {
   const estadoActual = estadoDesdeUltimoEvento((ultimoEvento?.event_type as TipoEvento) ?? null);
   let esAnomalia = !transicionEsValida(estadoActual, eventType as TipoEvento);
 
+  // El kiosco no recibe device_ts del cliente: tanto la detección de
+  // anomalía como el evento que se guarda más abajo usan este mismo
+  // "ahora", capturado antes de la subida de la selfie para que ambos
+  // reflejen el mismo instante.
+  const ahora = new Date();
+
   // Transición estructuralmente válida, pero el tramo resultante es
-  // sospechosamente largo (spec: "Auto-flag de cierre tardío"). El kiosco
-  // no recibe device_ts del cliente, así que se compara contra new Date()
-  // directamente, no contra un timestamp capturado antes.
+  // sospechosamente largo (spec: "Auto-flag de cierre tardío").
   if (!esAnomalia && ultimoEvento && (eventType === "clock_out" || eventType === "break_end")) {
     // Para break_end el predecesor inmediato siempre es el break_start que
     // abrió el descanso (garantizado por la máquina de estados). Para
@@ -106,7 +110,7 @@ export async function POST(request: Request) {
       }
     }
 
-    esAnomalia = duracionExcedeUmbral(new Date(aperturaTs), new Date(), config?.open_shift_threshold_hours ?? 16);
+    esAnomalia = duracionExcedeUmbral(new Date(aperturaTs), ahora, config?.open_shift_threshold_hours ?? 16);
   }
 
   const id = randomUUID();
@@ -121,7 +125,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No pudimos guardar la foto. Intenta de nuevo." }, { status: 500 });
   }
 
-  const ahora = new Date().toISOString();
+  const ahoraIso = ahora.toISOString();
   const { error: errorInsert } = await admin.from("clock_events").insert({
     id,
     company_id: dispositivo.companyId,
@@ -129,8 +133,8 @@ export async function POST(request: Request) {
     work_center_id: dispositivo.workCenterId,
     event_type: eventType,
     source: "kiosk",
-    device_ts: ahora,
-    server_ts: ahora,
+    device_ts: ahoraIso,
+    server_ts: ahoraIso,
     selfie_path: rutaSelfie,
     flag_sequence_anomaly: esAnomalia,
   });
