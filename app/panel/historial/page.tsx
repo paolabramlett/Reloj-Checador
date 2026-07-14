@@ -71,6 +71,25 @@ export default async function PaginaHistorial({
     anotacionesPorEvento.set(anotacion.clock_event_id, lista);
   }
 
+  const { data: correcciones } =
+    idsEventos.length > 0
+      ? await supabase
+          .from("clock_event_corrections")
+          .select("opens_event_id, corrected_closing_ts, reason, created_at")
+          .in("opens_event_id", idsEventos)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+
+  // La vigente es la más reciente por opens_event_id — al venir ya
+  // ordenada desc por created_at, la primera que se ve por id es la que
+  // se queda.
+  const correccionVigentePorEvento = new Map<string, { corrected_closing_ts: string; reason: string; created_at: string }>();
+  for (const correccion of correcciones ?? []) {
+    if (!correccionVigentePorEvento.has(correccion.opens_event_id)) {
+      correccionVigentePorEvento.set(correccion.opens_event_id, correccion);
+    }
+  }
+
   const parametrosExport = new URLSearchParams({ desde: fechaDesde, hasta: fechaHasta });
   if (empleadoId) parametrosExport.set("empleado", empleadoId);
 
@@ -150,6 +169,7 @@ export default async function PaginaHistorial({
           {eventos.map((evento) => {
             const empleadoNombre = (evento.employees as unknown as { full_name: string } | null)?.full_name;
             const misAnotaciones = anotacionesPorEvento.get(evento.id) ?? [];
+            const correccion = correccionVigentePorEvento.get(evento.id);
             return (
               <li key={evento.id} className="flex flex-col gap-2 rounded-md border border-border px-4 py-3">
                 <div className="flex items-center justify-between">
@@ -175,6 +195,15 @@ export default async function PaginaHistorial({
                         {formatearFecha(anotacion.created_at)}): {anotacion.motivo}
                       </p>
                     ))}
+                  </div>
+                )}
+
+                {correccion && (
+                  <div className="flex flex-col gap-1 rounded-md bg-primary-tint px-3 py-2 text-xs text-ink">
+                    <p>
+                      <span className="font-medium">Corrección vigente</span> ({formatearFecha(correccion.created_at)}):
+                      cierre real {formatearFechaHoraCorta(correccion.corrected_closing_ts)} — {correccion.reason}
+                    </p>
                   </div>
                 )}
 
