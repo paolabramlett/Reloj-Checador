@@ -5,16 +5,23 @@
  * vigente, y tramos_pendientes_revision detectando ambos casos (turno
  * abierto, cierre marcado como anomalía).
  *
- * El check de regresión "clock_in real" ejercita app/api/fichar/route.ts
- * de verdad, vía HTTP, así que requiere un `npm run dev` corriendo en
+ * Los checks de regresión "clock_in real" (personal y kiosco) ejercitan
+ * app/api/fichar/route.ts y app/api/kiosco/fichar/route.ts de verdad, vía
+ * HTTP, así que requieren un `npm run dev` corriendo en
  * NEXT_PUBLIC_SITE_URL (por defecto http://localhost:3000).
  *
  * Uso: node scripts/test-correcciones-fichajes.mjs  (lee .env.local)
  */
 import { createClient } from "@supabase/supabase-js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { duracionExcedeUmbral } from "../lib/fichaje.ts";
+
+// Node no resuelve imports sin extensión ("./pin") fuera de un bundler, así
+// que esta función se copia tal cual de lib/pin.ts para el check de
+// regresión de kiosco — no es una reimplementación paralela, es
+// exactamente el mismo código fuente.
+const hashPin = (companyId, pin) => createHash("sha256").update(`${companyId}:${pin}`).digest("hex");
 
 const env = Object.fromEntries(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8")
@@ -488,7 +495,104 @@ try {
     );
   }
 
-  // 16. RLS cruzado entre empresas: una segunda empresa (con su propio
+  // 16. Regresión (kiosco): el mismo bug del check anterior (medir la
+  // duración desde el predecesor inmediato en vez del clock_in real que
+  // abrió el turno) también se corrigió en
+  // app/api/kiosco/fichar/route.ts (Task 4, mismo patrón que Task 3).
+  // Se ejercita vía HTTP real contra /api/kiosco/fichar, que no usa
+  // sesión de usuario — se autentica con token de dispositivo + PIN —
+  // así que no hace falta cookie de sesión: alcanza con un empleado con
+  // pin_hash y un kiosco registrado en esta empresa.
+  //   clock_in hace 39h -> break_start hace 2h -> break_end hace 1h ->
+  //   clock_out AHORA (vía /api/kiosco/fichar).
+  // Igual que en el check anterior, el turno completo dura ~39h y debe
+  // quedar flag_sequence_anomaly=true aunque el hueco desde break_end sea
+  // de apenas 1h.
+  const pinRegresionKiosco = "7654";
+  const { data: empRegresionKiosco, error: errorEmpRegresionKiosco } = await admin
+    .from("employees")
+    .insert({
+      company_id: companyId,
+      work_center_id: workCenterId,
+      full_name: "Regresion Kiosco ClockIn Real",
+      pin_hash: hashPin(companyId, pinRegresionKiosco),
+    })
+    .select()
+    .single();
+  check("Regresión kiosco: se pudo crear el empleado de prueba", !errorEmpRegresionKiosco && !!empRegresionKiosco, errorEmpRegresionKiosco?.message);
+  const empRegresionKioscoId = empRegresionKiosco.id;
+
+  const tokenKioscoRegresion = randomBytes(24).toString("base64url");
+  const { data: kioscoRegresion, error: errorKioscoRegresion } = await admin
+    .from("kiosk_devices")
+    .insert({
+      company_id: companyId,
+      work_center_id: workCenterId,
+      name: "Kiosco Regresión",
+      token_hash: createHash("sha256").update(tokenKioscoRegresion).digest("hex"),
+    })
+    .select()
+    .single();
+  check("Regresión kiosco: se pudo registrar el kiosco de prueba", !errorKioscoRegresion && !!kioscoRegresion, errorKioscoRegresion?.message);
+
+  const ahoraRegresionKiosco = Date.now();
+  await insertarEventoPara(empRegresionKioscoId, "clock_in", new Date(ahoraRegresionKiosco - 39 * 3600_000).toISOString());
+  await insertarEventoPara(empRegresionKioscoId, "break_start", new Date(ahoraRegresionKiosco - 2 * 3600_000).toISOString());
+  await insertarEventoPara(empRegresionKioscoId, "break_end", new Date(ahoraRegresionKiosco - 1 * 3600_000).toISOString());
+
+  // 1x1 PNG transparente — el endpoint no valida el contenido de la
+  // selfie, solo que empiece con "data:image/"; la sube tal cual.
+  const selfieDePrueba =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+  let respuestaFicharKiosco;
+  try {
+    respuestaFicharKiosco = await fetch(`${SITE_URL}/api/kiosco/fichar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: tokenKioscoRegresion,
+        employee_id: empRegresionKioscoId,
+        pin: pinRegresionKiosco,
+        event_type: "clock_out",
+        selfie: selfieDePrueba,
+      }),
+    });
+  } catch (e) {
+    check(
+      "Regresión kiosco: POST /api/kiosco/fichar respondió",
+      false,
+      `No se pudo conectar a ${SITE_URL} — ¿está corriendo 'npm run dev'? (${e.message})`,
+    );
+  }
+
+  if (respuestaFicharKiosco) {
+    const cuerpoFicharKiosco = await respuestaFicharKiosco.json().catch(() => null);
+    check(
+      "Regresión kiosco: POST /api/kiosco/fichar del clock_out respondió 200",
+      respuestaFicharKiosco.status === 200,
+      `status ${respuestaFicharKiosco.status} — ${JSON.stringify(cuerpoFicharKiosco)}`,
+    );
+
+    // El endpoint de kiosco no recibe ni devuelve el id del evento (genera
+    // el suyo internamente), así que se busca el clock_out más reciente
+    // de este empleado — es el único que se insertó para él en este check.
+    const { data: eventoClockOutRegresionKiosco } = await admin
+      .from("clock_events")
+      .select("flag_sequence_anomaly")
+      .eq("employee_id", empRegresionKioscoId)
+      .eq("event_type", "clock_out")
+      .order("device_ts", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    check(
+      "Regresión kiosco: turno de 39h con descanso corto justo antes de cerrar SÍ queda flageado (medido desde el clock_in real, no desde el break_end previo)",
+      eventoClockOutRegresionKiosco?.flag_sequence_anomaly === true,
+      JSON.stringify(eventoClockOutRegresionKiosco),
+    );
+  }
+
+  // 17. RLS cruzado entre empresas: una segunda empresa (con su propio
   // owner y empleado) no debe poder leer ni insertar correcciones de la
   // primera empresa.
   const stampB = `${stamp}-b`;
@@ -556,8 +660,17 @@ try {
   }
 } finally {
   if (companyId) {
+    // La selfie que /api/kiosco/fichar sube durante el check de regresión
+    // de kiosco queda con un nombre generado por el propio endpoint
+    // (randomUUID interno, no expuesto en la respuesta) — se limpia
+    // listando la carpeta de la empresa en el bucket en vez de por id.
+    const { data: selfiesEnCarpeta } = await admin.storage.from("selfies").list(companyId);
+    if (selfiesEnCarpeta?.length) {
+      await admin.storage.from("selfies").remove(selfiesEnCarpeta.map((f) => `${companyId}/${f.name}`));
+    }
     await admin.from("clock_event_corrections").delete().eq("company_id", companyId);
     await admin.from("clock_events").delete().eq("company_id", companyId);
+    await admin.from("kiosk_devices").delete().eq("company_id", companyId);
     await admin.from("employees").delete().eq("company_id", companyId);
     await admin.from("work_centers").delete().eq("company_id", companyId);
     await admin.from("company_members").delete().eq("company_id", companyId);
