@@ -59,6 +59,7 @@
 - [x] 8.3 Exportación CSV por empresa/empleados/periodo con doble timestamp y marcas
 - [x] 8.4 Exportación PDF con encabezado de empresa, apta para entregar en inspección
 - [x] 8.5 Política de retención: bloqueo de toda operación destructiva dentro del plazo legal (baja de empleado y cancelación de suscripción conservan registros)
+- [x] 8.6 Corrección de fichajes faltantes o mal cerrados: detección automática por umbral de horas (turnos y descansos sospechosamente largos), tabla `clock_event_corrections` append-only con corrección admin-only vía RLS y efecto real en el cómputo de horas semanales, vista de pendientes de revisión y formulario de corrección para el admin, visibilidad de la corrección vigente en el historial del admin y en el historial propio del empleado (spec: `docs/superpowers/specs/2026-07-13-correcciones-fichajes-design.md`, plan: `docs/superpowers/plans/2026-07-13-correcciones-fichajes.md`). Gap conocido y aceptado: la corrección no se refleja todavía en las exportaciones CSV/PDF.
 
 ## 9. Facturación
 
