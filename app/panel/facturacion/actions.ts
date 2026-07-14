@@ -6,7 +6,7 @@ import { crearClienteAdmin } from "@/lib/supabase/admin";
 import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
 import { crearClienteStripe } from "@/lib/stripe";
 
-const SITIO_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const SITIO_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 const PRECIOS = {
   monthly: process.env.STRIPE_PRICE_MONTHLY!,
   annual: process.env.STRIPE_PRICE_ANNUAL!,
