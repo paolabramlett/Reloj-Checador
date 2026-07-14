@@ -20,7 +20,9 @@ export default async function PaginaPendientes() {
   const supabase = await crearClienteServidor();
   if (!(await obtenerAccesoAdmin(supabase, empresa.id))) return <BloqueoFacturacion />;
 
-  const { data: pendientes } = await supabase.rpc("tramos_pendientes_revision", { p_company_id: empresa.id });
+  const { data: pendientes, error: errorPendientes } = await supabase.rpc("tramos_pendientes_revision", {
+    p_company_id: empresa.id,
+  });
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-6 px-6 py-12">
@@ -31,7 +33,14 @@ export default async function PaginaPendientes() {
         </p>
       </div>
 
-      {!pendientes || pendientes.length === 0 ? (
+      {errorPendientes ? (
+        // No mostrar "nada pendiente" cuando en realidad no pudimos
+        // consultar: en una página de cumplimiento, confundir un error
+        // con "todo en orden" es peor que no decir nada.
+        <p className="text-sm font-medium text-danger">
+          No pudimos cargar los pendientes de revisión. Intenta de nuevo más tarde.
+        </p>
+      ) : !pendientes || pendientes.length === 0 ? (
         <p className="text-muted">No hay nada pendiente de revisión.</p>
       ) : (
         <ul className="flex flex-col gap-3">
