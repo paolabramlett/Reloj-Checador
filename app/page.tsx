@@ -95,9 +95,40 @@ const SECTORES = [
   },
 ];
 
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Chekly",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web, Android, iOS",
+  description:
+    "Reloj checador digital para micro y pequeñas empresas mexicanas. Registra entradas, salidas y descansos con geocerca, PIN y selfie, cumple con el artículo 132 fracción XXXIV de la Ley Federal del Trabajo, y genera reportes listos para una inspección de la STPS.",
+  url: "https://reloj-checador-chi.vercel.app",
+  offers: {
+    "@type": "Offer",
+    price: "179",
+    priceCurrency: "MXN",
+    priceValidUntil: "2027-12-31",
+    description: "Tarifa plana mensual, hasta 10 empleados. 30 días de prueba, sin tarjeta.",
+  },
+  areaServed: {
+    "@type": "Country",
+    name: "México",
+  },
+  inLanguage: "es-MX",
+};
+
 export default function Inicio() {
   return (
     <main className="flex flex-col">
+      {/* Datos estructurados para buscadores y motores de IA — ayuda a que
+          Chekly se identifique correctamente como software de cumplimiento
+          de asistencia para PyMEs mexicanas, no un genérico "app de RH". */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
+
       {/* Header */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
         <Logo ancho={110} className="md:hidden" />
