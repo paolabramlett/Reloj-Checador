@@ -3,7 +3,7 @@
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { generarTokenInvitacion, hashTokenInvitacion } from "@/lib/invitacion";
 
-const SITIO_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const SITIO_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 const DIAS_VALIDEZ = 7;
 
 export async function generarInvitacion(_prevState: unknown, formData: FormData) {
