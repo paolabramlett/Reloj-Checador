@@ -3,6 +3,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 import { distanciaMetros } from "@/lib/geo";
 import {
   calcularFlagsDeTiempo,
+  duracionExcedeUmbral,
   estadoDesdeUltimoEvento,
   estadoSiguiente,
   transicionEsValida,
@@ -94,19 +95,63 @@ export async function POST(request: NextRequest) {
   // era válida.
   const { data: ultimoEvento } = await supabase
     .from("clock_events")
-    .select("event_type")
+    .select("event_type, device_ts")
     .eq("employee_id", empleado.id)
     .order("device_ts", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   const estadoActual = estadoDesdeUltimoEvento((ultimoEvento?.event_type as TipoEvento) ?? null);
-  const esAnomalia = !transicionEsValida(estadoActual, eventType as TipoEvento);
+  let esAnomalia = !transicionEsValida(estadoActual, eventType as TipoEvento);
 
   const { data: config } = await supabase
     .from("system_settings")
-    .select("clock_skew_threshold_seconds, late_sync_threshold_seconds")
+    .select("clock_skew_threshold_seconds, late_sync_threshold_seconds, open_shift_threshold_hours")
     .single();
+
+  // Transición estructuralmente válida, pero el tramo resultante es
+  // sospechosamente largo (spec: "Auto-flag de cierre tardío") — p. ej.
+  // alguien toca "Marcar salida" al día siguiente sin darse cuenta de
+  // que su turno de ayer se quedó abierto. Se deja registrar, pero
+  // queda flageado para que un admin lo revise y, si aplica, lo
+  // corrija con la hora real.
+  if (
+    !esAnomalia &&
+    ultimoEvento &&
+    (eventType === "clock_out" || eventType === "break_end")
+  ) {
+    // Para break_end, el predecesor inmediato SIEMPRE es el break_start que
+    // abrió el descanso (lo garantiza la máquina de estados de lib/fichaje.ts),
+    // así que ultimoEvento sirve tal cual. Para clock_out, en cambio, si el
+    // turno tuvo un descanso el predecesor inmediato es el break_end, no el
+    // clock_in que abrió el turno — medir desde ahí subestima la duración
+    // real (un turno de 39h con un descanso corto justo antes de cerrar no
+    // quedaría marcado). Buscamos entonces el clock_in más reciente: por la
+    // misma máquina de estados, si esta transición es válida no pudo haber
+    // ocurrido ningún clock_out desde que se abrió el turno actual, así que
+    // ese clock_in es necesariamente el que lo abrió, sin importar cuántos
+    // break_start/break_end hubo en medio.
+    let aperturaTs = ultimoEvento.device_ts;
+    if (eventType === "clock_out" && ultimoEvento.event_type === "break_end") {
+      const { data: ultimoClockIn } = await supabase
+        .from("clock_events")
+        .select("device_ts")
+        .eq("employee_id", empleado.id)
+        .eq("event_type", "clock_in")
+        .order("device_ts", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (ultimoClockIn) {
+        aperturaTs = ultimoClockIn.device_ts;
+      }
+    }
+
+    esAnomalia = duracionExcedeUmbral(
+      new Date(aperturaTs),
+      deviceTs,
+      config?.open_shift_threshold_hours ?? 16,
+    );
+  }
 
   const serverTs = new Date();
   const { flagLateSync, flagClockSkew } = calcularFlagsDeTiempo(deviceTs, serverTs, syncTs, {

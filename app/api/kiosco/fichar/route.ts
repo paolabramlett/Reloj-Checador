@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
 import { validarTokenDispositivo, verificarPinConBloqueo } from "@/lib/kiosco";
 import {
+  duracionExcedeUmbral,
   estadoDesdeUltimoEvento,
   estadoSiguiente,
   transicionEsValida,
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
 
   const { data: config } = await admin
     .from("system_settings")
-    .select("pin_lockout_attempts, pin_lockout_minutes")
+    .select("pin_lockout_attempts, pin_lockout_minutes, open_shift_threshold_hours")
     .single();
 
   // Se revalida el PIN acá también (no solo en /verificar-pin): nunca hay
@@ -71,14 +72,46 @@ export async function POST(request: Request) {
   // puede mezclar ambos orígenes.
   const { data: ultimoEvento } = await admin
     .from("clock_events")
-    .select("event_type")
+    .select("event_type, device_ts")
     .eq("employee_id", empleado.id)
     .order("device_ts", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   const estadoActual = estadoDesdeUltimoEvento((ultimoEvento?.event_type as TipoEvento) ?? null);
-  const esAnomalia = !transicionEsValida(estadoActual, eventType as TipoEvento);
+  let esAnomalia = !transicionEsValida(estadoActual, eventType as TipoEvento);
+
+  // El kiosco no recibe device_ts del cliente: tanto la detección de
+  // anomalía como el evento que se guarda más abajo usan este mismo
+  // "ahora", capturado antes de la subida de la selfie para que ambos
+  // reflejen el mismo instante.
+  const ahora = new Date();
+
+  // Transición estructuralmente válida, pero el tramo resultante es
+  // sospechosamente largo (spec: "Auto-flag de cierre tardío").
+  if (!esAnomalia && ultimoEvento && (eventType === "clock_out" || eventType === "break_end")) {
+    // Para break_end el predecesor inmediato siempre es el break_start que
+    // abrió el descanso (garantizado por la máquina de estados). Para
+    // clock_out con un descanso de por medio, en cambio, el predecesor
+    // inmediato es el break_end, no el clock_in que abrió el turno — hay
+    // que buscar ese clock_in aparte, igual que en api/fichar/route.ts.
+    let aperturaTs = ultimoEvento.device_ts;
+    if (eventType === "clock_out" && ultimoEvento.event_type === "break_end") {
+      const { data: ultimoClockIn } = await admin
+        .from("clock_events")
+        .select("device_ts")
+        .eq("employee_id", empleado.id)
+        .eq("event_type", "clock_in")
+        .order("device_ts", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (ultimoClockIn) {
+        aperturaTs = ultimoClockIn.device_ts;
+      }
+    }
+
+    esAnomalia = duracionExcedeUmbral(new Date(aperturaTs), ahora, config?.open_shift_threshold_hours ?? 16);
+  }
 
   const id = randomUUID();
   const rutaSelfie = `${dispositivo.companyId}/${id}.jpg`;
@@ -92,7 +125,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No pudimos guardar la foto. Intenta de nuevo." }, { status: 500 });
   }
 
-  const ahora = new Date().toISOString();
+  const ahoraIso = ahora.toISOString();
   const { error: errorInsert } = await admin.from("clock_events").insert({
     id,
     company_id: dispositivo.companyId,
@@ -100,8 +133,8 @@ export async function POST(request: Request) {
     work_center_id: dispositivo.workCenterId,
     event_type: eventType,
     source: "kiosk",
-    device_ts: ahora,
-    server_ts: ahora,
+    device_ts: ahoraIso,
+    server_ts: ahoraIso,
     selfie_path: rutaSelfie,
     flag_sequence_anomaly: esAnomalia,
   });

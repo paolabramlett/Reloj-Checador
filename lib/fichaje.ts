@@ -80,3 +80,14 @@ export function calcularFlagsDeTiempo(
     flagClockSkew: desviacionMs > umbrales.clockSkewSegundos * 1000,
   };
 }
+
+/**
+ * True si el tramo entre `apertura` y `cierre` supera `umbralHoras` — se
+ * usa para auto-marcar flag_sequence_anomaly en un cierre estructural-
+ * mente válido pero sospechosamente tardío (spec: "Auto-flag de cierre
+ * tardío"), y para listar tramos abiertos en tramos_pendientes_revision.
+ */
+export function duracionExcedeUmbral(apertura: Date, cierre: Date, umbralHoras: number): boolean {
+  const horasTranscurridas = (cierre.getTime() - apertura.getTime()) / 3_600_000;
+  return horasTranscurridas > umbralHoras;
+}
