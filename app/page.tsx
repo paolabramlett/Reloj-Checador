@@ -115,7 +115,19 @@ export default function Inicio() {
       </header>
 
       {/* Hero */}
-      <section className="mx-auto grid min-h-[calc(100dvh-88px)] w-full max-w-6xl items-center gap-12 px-6 py-12 md:grid-cols-2">
+      <section className="relative mx-auto grid min-h-[calc(100dvh-88px)] w-full max-w-6xl items-center gap-12 overflow-hidden px-6 py-12 md:grid-cols-2">
+        {/* Fondo con un toque humano, muy sutil para no competir con el texto */}
+        <div className="absolute inset-0 -z-10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://images.unsplash.com/photo-1747835680062-94a22ca03ba7?auto=format&fit=crop&w=1800&q=80"
+            alt="Fachada de una taquería mexicana con dos empleados atendiendo el mostrador"
+            className="h-full w-full object-cover opacity-[0.18]"
+            loading="eager"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-bg from-30% via-bg/75 via-65% to-bg/35 md:bg-gradient-to-r md:from-25% md:via-60%" />
+        </div>
+
         <div className="flex flex-col gap-6 text-center md:text-left">
           <h1
             className="text-balance font-bold text-ink"
