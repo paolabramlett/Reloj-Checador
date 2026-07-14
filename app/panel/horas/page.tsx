@@ -91,6 +91,10 @@ export default async function PaginaHoras() {
         </ul>
       )}
 
+      <Link href="/panel/horas/pendientes" className="text-sm font-medium text-primary hover:underline">
+        Ver pendientes de revisión →
+      </Link>
+
       <Link href="/panel" className="text-sm font-medium text-primary hover:underline">
         ← Volver al panel
       </Link>
