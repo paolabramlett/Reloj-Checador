@@ -39,6 +39,9 @@ export default async function PaginaHistorialPropio() {
           .order("created_at", { ascending: false })
       : { data: [] };
 
+  // La vigente es la más reciente por opens_event_id — al venir ya
+  // ordenada desc por created_at, la primera que se ve por id es la que
+  // se queda.
   const correccionVigentePorEvento = new Map<string, { corrected_closing_ts: string; reason: string; created_at: string }>();
   for (const correccion of correcciones ?? []) {
     if (!correccionVigentePorEvento.has(correccion.opens_event_id)) {
