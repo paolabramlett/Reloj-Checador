@@ -24,12 +24,23 @@ async function actualizarPorSuscripcion(subscription: Stripe.Subscription) {
     stripe_subscription_id: subscription.id,
   };
 
-  // Si el price ID no coincide con ningún rango conocido (evento de
-  // prueba, producto viejo, etc.), no tocamos employee_range — se queda
-  // con lo que ya tenía.
-  const priceId = subscription.items.data[0]?.price.id;
+  // Se asume un solo price por suscripción — cierto hoy porque
+  // iniciarCheckout (app/panel/facturacion/actions.ts) arma sesiones de
+  // Checkout con un único line_item; si algún día una suscripción llega
+  // a tener más de uno, esto seguiría mirando solo el primero.
+  const priceId = subscription.items.data[0]?.price?.id;
   const rango = priceId ? rangoDesdePriceId(priceId) : null;
-  if (rango) cambios.employee_range = rango;
+  if (rango) {
+    cambios.employee_range = rango;
+  } else {
+    // Si el price ID no coincide con ningún rango conocido (evento de
+    // prueba, producto viejo, un price rotado en Stripe sin actualizar
+    // los STRIPE_PRICE_* en el entorno, etc.), no tocamos employee_range
+    // — se queda con lo que ya tenía. Se deja registro porque esto
+    // podría ser un cliente real pagando por un rango que el código ya
+    // no reconoce, no solo un evento de prueba inofensivo.
+    console.warn(`Webhook de Stripe: price ID '${priceId}' no coincide con ningún rango conocido.`);
+  }
 
   await admin.from("companies").update(cambios).eq("stripe_customer_id", customerId);
 }
