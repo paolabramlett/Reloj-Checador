@@ -1,5 +1,6 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
@@ -32,13 +33,11 @@ function mensajeDeErrorDb(error: { code?: string }): string {
   return "No pudimos guardar. Intenta de nuevo.";
 }
 
-type ClienteServidor = Awaited<ReturnType<typeof crearClienteServidor>>;
-
 // Cuenta empleados activos y compara contra el tope efectivo del rango
 // contratado (spec: docs/superpowers/specs/2026-07-14-plan-hasta-25-empleados-design.md,
 // decisión 6 — bloqueo duro sobre altas nuevas, nunca sobre el fichaje).
 async function limiteAlcanzado(
-  supabase: ClienteServidor,
+  supabase: SupabaseClient,
   companyId: string,
 ): Promise<{ alcanzado: boolean; limite: number | null }> {
   const { data: empresa } = await supabase
@@ -144,9 +143,9 @@ export async function reactivar(formData: FormData) {
 
   const supabase = await crearClienteServidor();
 
-  const { alcanzado } = await limiteAlcanzado(supabase, empresa.id);
+  const { alcanzado, limite } = await limiteAlcanzado(supabase, empresa.id);
   if (alcanzado) {
-    redirect(`/panel/empleados/${empleadoId}?error=limite`);
+    redirect(`/panel/empleados/${empleadoId}?error=limite&limite=${limite}`);
   }
 
   await supabase

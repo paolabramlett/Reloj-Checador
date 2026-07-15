@@ -12,10 +12,10 @@ export default async function PaginaEditarEmpleado({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; limite?: string }>;
 }) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, limite } = await searchParams;
   const empresa = await obtenerEmpresaActiva();
   if (!empresa) redirect("/panel");
 
@@ -42,8 +42,9 @@ export default async function PaginaEditarEmpleado({
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-12">
       {error === "limite" && (
         <Mensaje tono="error">
-          No pudimos reactivar: ya llegaste al límite de tu plan. Sube de plan en Facturación para
-          agregar más empleados.
+          No pudimos reactivar: ya llegaste al límite de tu plan
+          {limite ? ` (${limite} empleados)` : ""}. Sube de plan en Facturación para agregar más
+          empleados.
         </Mensaje>
       )}
 
