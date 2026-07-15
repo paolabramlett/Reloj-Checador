@@ -114,8 +114,10 @@ console.log("\n--- Prueba del webhook (evento firmado real de Stripe, modo prueb
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 let empresaWebhookId;
+let clienteStripeId;
 try {
   const clienteStripe = await stripe.customers.create({ name: "Prueba Webhook Rango" });
+  clienteStripeId = clienteStripe.id;
 
   const { data: empresaWebhook, error: errEmpresaWebhook } = await admin
     .from("companies")
@@ -173,6 +175,10 @@ try {
   );
 } finally {
   if (empresaWebhookId) await admin.from("companies").delete().eq("id", empresaWebhookId);
+  // Sin esto, cada corrida deja un cliente huérfano en el modo de
+  // prueba de Stripe — no afecta la facturación real, pero ensucia el
+  // dashboard con el tiempo.
+  if (clienteStripeId) await stripe.customers.del(clienteStripeId);
 }
 
 console.log(failures === 0 ? "\nTodas las pruebas de facturación por rangos pasan." : `\n${failures} fallas.`);
