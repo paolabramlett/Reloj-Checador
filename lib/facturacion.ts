@@ -61,6 +61,39 @@ export function limiteEfectivoDeEmpleados(empresa: {
 }
 
 /**
+ * Cuenta empleados activos de una empresa y compara contra su tope
+ * efectivo (spec: docs/superpowers/specs/2026-07-14-plan-hasta-25-empleados-design.md,
+ * decisión 6). Único lugar donde vive esta lógica — tanto el bloqueo
+ * duro al dar de alta/reactivar un empleado (`app/panel/empleados/actions.ts`)
+ * como el aviso informativo del panel (`app/panel/page.tsx`) llaman a
+ * esta misma función, para que nunca puedan discrepar entre sí sobre
+ * si una empresa ya llegó a su tope.
+ */
+export async function limiteDeEmpleadosAlcanzado(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<{ alcanzado: boolean; limite: number | null }> {
+  const { data: empresa } = await supabase
+    .from("companies")
+    .select("subscription_status, employee_range")
+    .eq("id", companyId)
+    .single();
+
+  if (!empresa) return { alcanzado: false, limite: null };
+
+  const limite = limiteEfectivoDeEmpleados(empresa);
+  if (limite === null) return { alcanzado: false, limite: null };
+
+  const { count } = await supabase
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("status", "active");
+
+  return { alcanzado: (count ?? 0) >= limite, limite };
+}
+
+/**
  * Traduce el price ID de una suscripción de Stripe al rango de
  * facturación correspondiente — lo usa el webhook para mantener
  * companies.employee_range sincronizado con lo que realmente se pagó.
