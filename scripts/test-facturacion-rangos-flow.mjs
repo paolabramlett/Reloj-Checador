@@ -8,6 +8,11 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
+import {
+  limiteDelRango,
+  limiteEfectivoDeEmpleados,
+  rangoDesdePriceId,
+} from "../lib/facturacion.ts";
 
 const env = Object.fromEntries(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8")
@@ -16,14 +21,10 @@ const env = Object.fromEntries(
     .map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim()]),
 );
 
-// lib/facturacion.ts lee process.env.STRIPE_PRICE_* al cargarse (para
-// PRICE_IDS_POR_RANGO) — un import estático se evaluaría antes de que
-// este script tenga oportunidad de poblar process.env, así que se
-// importa dinámicamente después de copiar .env.local ahí.
+// rangoDesdePriceId lee process.env directo (no una constante de
+// módulo), así que necesita que las variables de Stripe estén en
+// process.env real, no solo en el objeto `env` de arriba.
 Object.assign(process.env, env);
-const { limiteDelRango, limiteEfectivoDeEmpleados, rangoDesdePriceId } = await import(
-  "../lib/facturacion.ts"
-);
 
 const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
