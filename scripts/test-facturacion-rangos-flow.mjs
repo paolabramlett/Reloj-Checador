@@ -7,6 +7,7 @@
  * Uso: node scripts/test-facturacion-rangos-flow.mjs
  */
 import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
 import { readFileSync } from "node:fs";
 import {
   limiteDelRango,
@@ -107,6 +108,71 @@ try {
   check("employee_range SIGUE rechazando un valor no listado (hasta_100)", !!errInvalido);
 } finally {
   if (empresaPruebaId) await admin.from("companies").delete().eq("id", empresaPruebaId);
+}
+
+console.log("\n--- Prueba del webhook (evento firmado real de Stripe, modo prueba) ---");
+
+const stripe = new Stripe(env.STRIPE_SECRET_KEY);
+let empresaWebhookId;
+try {
+  const clienteStripe = await stripe.customers.create({ name: "Prueba Webhook Rango" });
+
+  const { data: empresaWebhook, error: errEmpresaWebhook } = await admin
+    .from("companies")
+    .insert({ name: "Prueba Webhook Rango", stripe_customer_id: clienteStripe.id })
+    .select("id")
+    .single();
+  check(
+    "Se pudo crear la empresa de prueba del webhook",
+    !errEmpresaWebhook && !!empresaWebhook,
+    errEmpresaWebhook?.message,
+  );
+  empresaWebhookId = empresaWebhook?.id;
+
+  // Evento simulado de Stripe con la forma real de un customer.subscription.updated
+  // para el price mensual de hasta_25 — no requiere una suscripción real
+  // en Stripe, solo un payload con la forma correcta y una firma válida.
+  const payload = JSON.stringify({
+    id: "evt_test_rango25",
+    type: "customer.subscription.updated",
+    data: {
+      object: {
+        id: "sub_test_rango25",
+        status: "active",
+        customer: clienteStripe.id,
+        items: { data: [{ price: { id: env.STRIPE_PRICE_MONTHLY_25 } }] },
+      },
+    },
+  });
+
+  const cabecera = stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: env.STRIPE_WEBHOOK_SECRET,
+  });
+
+  const respuesta = await fetch(`${env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/api/webhooks/stripe`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "stripe-signature": cabecera },
+    body: payload,
+  });
+  check("El webhook respondió 200", respuesta.status === 200, `status ${respuesta.status}`);
+
+  const { data: empresaActualizada } = await admin
+    .from("companies")
+    .select("subscription_status, employee_range")
+    .eq("id", empresaWebhookId)
+    .single();
+  check(
+    "El webhook guardó employee_range = 'hasta_25' según el price de la suscripción",
+    empresaActualizada?.employee_range === "hasta_25",
+    `employee_range fue '${empresaActualizada?.employee_range}'`,
+  );
+  check(
+    "El webhook guardó subscription_status = 'active'",
+    empresaActualizada?.subscription_status === "active",
+  );
+} finally {
+  if (empresaWebhookId) await admin.from("companies").delete().eq("id", empresaWebhookId);
 }
 
 console.log(failures === 0 ? "\nTodas las pruebas de facturación por rangos pasan." : `\n${failures} fallas.`);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { crearClienteStripe } from "@/lib/stripe";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
+import { rangoDesdePriceId } from "@/lib/facturacion";
 
 // Estados de Stripe -> los 4 valores que maneja companies.subscription_status.
 function mapearEstado(estadoStripe: Stripe.Subscription.Status): "trialing" | "active" | "past_due" | "canceled" {
@@ -18,13 +19,19 @@ async function actualizarPorSuscripcion(subscription: Stripe.Subscription) {
   const customerId =
     typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
-  await admin
-    .from("companies")
-    .update({
-      subscription_status: mapearEstado(subscription.status),
-      stripe_subscription_id: subscription.id,
-    })
-    .eq("stripe_customer_id", customerId);
+  const cambios: Record<string, unknown> = {
+    subscription_status: mapearEstado(subscription.status),
+    stripe_subscription_id: subscription.id,
+  };
+
+  // Si el price ID no coincide con ningún rango conocido (evento de
+  // prueba, producto viejo, etc.), no tocamos employee_range — se queda
+  // con lo que ya tenía.
+  const priceId = subscription.items.data[0]?.price.id;
+  const rango = priceId ? rangoDesdePriceId(priceId) : null;
+  if (rango) cambios.employee_range = rango;
+
+  await admin.from("companies").update(cambios).eq("stripe_customer_id", customerId);
 }
 
 export async function POST(request: Request) {
