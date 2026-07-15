@@ -19,6 +19,7 @@ export async function obtenerAccesoAdmin(
 
 const LIMITE_RANGO: Record<string, number> = {
   hasta_10: 10,
+  hasta_25: 25,
 };
 
 /**
@@ -41,4 +42,40 @@ export function diasDeTrialRestantes(trialEndsAt: string): number {
 
 export function limiteDelRango(rango: string): number {
   return LIMITE_RANGO[rango] ?? 10;
+}
+
+/**
+ * Tope real de empleados activos que puede tener una empresa ahora
+ * mismo: null = sin tope (spec, decisión 5 — durante el trial se puede
+ * probar con el equipo real completo, sin importar el tamaño). Fuera
+ * del trial (activo, atrasado o cancelado) aplica el tope del rango
+ * contratado — el tope de empleados no se levanta solo porque el pago
+ * esté atrasado.
+ */
+export function limiteEfectivoDeEmpleados(empresa: {
+  subscription_status: string;
+  employee_range: string;
+}): number | null {
+  if (empresa.subscription_status === "trialing") return null;
+  return limiteDelRango(empresa.employee_range);
+}
+
+const PRICE_IDS_POR_RANGO: Record<string, string[]> = {
+  hasta_10: [process.env.STRIPE_PRICE_MONTHLY ?? "", process.env.STRIPE_PRICE_ANNUAL ?? ""],
+  hasta_25: [process.env.STRIPE_PRICE_MONTHLY_25 ?? "", process.env.STRIPE_PRICE_ANNUAL_25 ?? ""],
+};
+
+/**
+ * Traduce el price ID de una suscripción de Stripe al rango de
+ * facturación correspondiente — lo usa el webhook para mantener
+ * companies.employee_range sincronizado con lo que realmente se pagó.
+ * null si el price ID no coincide con ninguno conocido (evento de
+ * prueba, producto viejo, etc.) — en ese caso el webhook no toca
+ * employee_range.
+ */
+export function rangoDesdePriceId(priceId: string): string | null {
+  for (const [rango, priceIds] of Object.entries(PRICE_IDS_POR_RANGO)) {
+    if (priceIds.includes(priceId)) return rango;
+  }
+  return null;
 }
