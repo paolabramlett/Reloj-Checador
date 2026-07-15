@@ -43,12 +43,20 @@ console.log("Producto creado:", producto.id);
 console.log("Precio mensual:", precioMensual.id, "($349 MXN/mes)");
 console.log("Precio anual:", precioAnual.id, "($3,490 MXN/año — 2 meses gratis)");
 
+// Reemplaza la línea si la variable ya existe (una segunda corrida
+// accidental actualiza en vez de duplicar), o la agrega al final si es
+// la primera vez que corre este script.
+function fijarVariableEnv(contenido, nombre, valor) {
+  const regex = new RegExp(`^${nombre}=.*$`, "m");
+  if (regex.test(contenido)) return contenido.replace(regex, `${nombre}=${valor}`);
+  return `${contenido.trimEnd()}\n${nombre}=${valor}\n`;
+}
+
 const envPath = new URL("../.env.local", import.meta.url);
-const contenidoActual = readFileSync(envPath, "utf8");
-const contenidoNuevo =
-  contenidoActual.trimEnd() +
-  `\nSTRIPE_PRICE_MONTHLY_25=${precioMensual.id}\nSTRIPE_PRICE_ANNUAL_25=${precioAnual.id}\n`;
-writeFileSync(envPath, contenidoNuevo);
+let contenidoEnv = readFileSync(envPath, "utf8");
+contenidoEnv = fijarVariableEnv(contenidoEnv, "STRIPE_PRICE_MONTHLY_25", precioMensual.id);
+contenidoEnv = fijarVariableEnv(contenidoEnv, "STRIPE_PRICE_ANNUAL_25", precioAnual.id);
+writeFileSync(envPath, contenidoEnv);
 console.log("\n.env.local actualizado con los nuevos Price IDs.");
 
 // Configura el portal de cliente ("Gestionar suscripción") para que un
