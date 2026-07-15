@@ -23,12 +23,22 @@ El sistema SHALL cobrar las suscripciones a través de Stripe aceptando tarjeta,
 - **WHEN** una empresa elige pagar su suscripción vía OXXO
 - **THEN** recibe la referencia de pago y, al confirmarse el pago, su suscripción se activa automáticamente
 
-### Requirement: Exceso de rango solicita upgrade
-Cuando los empleados activos de una empresa excedan su rango contratado, el sistema SHALL notificar al administrador y solicitar el upgrade de rango, con un margen de gracia; el alta de empleados MUST seguir funcionando durante ese margen para no interrumpir la operación.
+### Requirement: Bloqueo duro al llegar al tope del rango
+Cuando los empleados activos de una empresa lleguen al tope de su rango contratado, el sistema SHALL bloquear el alta (o reactivación) de un empleado nuevo, mostrando un mensaje claro para subir de rango; este bloqueo MUST NOT aplicar durante el periodo de prueba, y jamás aplica al fichaje ni a su ingesta.
 
-#### Scenario: Crecimiento del equipo
-- **WHEN** una empresa del rango "hasta 10" activa a su empleado número 11
-- **THEN** el alta procede, el administrador ve el aviso de upgrade y el plazo de gracia para regularizar
+(Decisión revertida el 2026-07-14 respecto a la versión original de este requirement — ver `docs/superpowers/specs/2026-07-14-plan-hasta-25-empleados-design.md`, sección "Decisiones que esta spec revierte", para la justificación completa.)
+
+#### Scenario: Empresa dentro del trial
+- **WHEN** una empresa en periodo de prueba con 18 empleados agrega uno más
+- **THEN** el alta procede sin ningún bloqueo, sin importar el tamaño
+
+#### Scenario: Empresa suscrita al tope de su rango
+- **WHEN** una empresa activa del rango "hasta 10", con 10 empleados activos, intenta agregar uno más
+- **THEN** el alta se bloquea y ve un mensaje indicando que debe subir de rango en Facturación
+
+#### Scenario: Empresa suscrita por debajo del tope
+- **WHEN** una empresa activa del rango "hasta 10" con 4 empleados agrega 3 más (total 7)
+- **THEN** el alta procede sin bloqueo ni aviso, porque sigue dentro de su rango
 
 ### Requirement: Bloqueo suave por falta de pago
 Si el pago vence sin renovarse tras el periodo de gracia, el sistema MUST bloquear el acceso del administrador a tableros y reportes, pero el fichaje de los empleados y el almacenamiento de registros SHALL seguir funcionando, porque los registros de asistencia son una obligación legal del cliente que el producto nunca pone en riesgo.
