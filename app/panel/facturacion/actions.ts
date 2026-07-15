@@ -43,8 +43,16 @@ async function obtenerOCrearClienteStripe(empresaId: string): Promise<string> {
 }
 
 export async function iniciarCheckout(formData: FormData) {
-  const plan = String(formData.get("plan") ?? "monthly") as "monthly" | "annual";
-  const rango = String(formData.get("rango") ?? "hasta_10") as "hasta_10" | "hasta_25";
+  const plan = String(formData.get("plan") ?? "monthly");
+  const rango = String(formData.get("rango") ?? "hasta_10");
+  // Esta acción se puede invocar con un POST crudo, sin pasar por los
+  // botones reales — un rango o plan fuera de estos dos valores nunca
+  // debería pasar de aquí, en vez de tronar al indexar PRECIOS más abajo
+  // (posiblemente después de ya haber creado un cliente real en Stripe).
+  if (!PRECIOS[rango] || !(plan === "monthly" || plan === "annual")) {
+    redirect("/panel/facturacion?checkout=cancelado");
+  }
+
   const empresa = await obtenerEmpresaActiva();
   if (!empresa) redirect("/panel");
 
