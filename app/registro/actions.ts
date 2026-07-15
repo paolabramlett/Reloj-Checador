@@ -2,7 +2,7 @@
 
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-const SITIO_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const SITIO_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export async function registrarCuenta(_prevState: unknown, formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
