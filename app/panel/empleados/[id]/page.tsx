@@ -4,14 +4,18 @@ import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
 import { FormularioEmpleado } from "@/components/formulario-empleado";
 import { AccionConfirmable } from "@/components/accion-confirmable";
 import { GeneradorInvitacion } from "@/components/generador-invitacion";
+import { Mensaje } from "@/components/ui/mensaje";
 import { actualizarEmpleado, darDeBaja, quitarPin, reactivar } from "../actions";
 
 export default async function PaginaEditarEmpleado({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { id } = await params;
+  const { error } = await searchParams;
   const empresa = await obtenerEmpresaActiva();
   if (!empresa) redirect("/panel");
 
@@ -36,6 +40,13 @@ export default async function PaginaEditarEmpleado({
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-12">
+      {error === "limite" && (
+        <Mensaje tono="error">
+          No pudimos reactivar: ya llegaste al límite de tu plan. Sube de plan en Facturación para
+          agregar más empleados.
+        </Mensaje>
+      )}
+
       {deBaja && (
         <div className="rounded-md bg-surface px-4 py-3 text-sm text-muted">
           Este empleado está dado de baja. No puede fichar hasta que lo reactives.

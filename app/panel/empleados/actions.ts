@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
 import { hashPin, PIN_REGEX } from "@/lib/pin";
+import { limiteEfectivoDeEmpleados } from "@/lib/facturacion";
 
 type CamposEmpleado =
   | { ok: false; error: string }
@@ -31,6 +32,35 @@ function mensajeDeErrorDb(error: { code?: string }): string {
   return "No pudimos guardar. Intenta de nuevo.";
 }
 
+type ClienteServidor = Awaited<ReturnType<typeof crearClienteServidor>>;
+
+// Cuenta empleados activos y compara contra el tope efectivo del rango
+// contratado (spec: docs/superpowers/specs/2026-07-14-plan-hasta-25-empleados-design.md,
+// decisión 6 — bloqueo duro sobre altas nuevas, nunca sobre el fichaje).
+async function limiteAlcanzado(
+  supabase: ClienteServidor,
+  companyId: string,
+): Promise<{ alcanzado: boolean; limite: number | null }> {
+  const { data: empresa } = await supabase
+    .from("companies")
+    .select("subscription_status, employee_range")
+    .eq("id", companyId)
+    .single();
+
+  if (!empresa) return { alcanzado: false, limite: null };
+
+  const limite = limiteEfectivoDeEmpleados(empresa);
+  if (limite === null) return { alcanzado: false, limite: null };
+
+  const { count } = await supabase
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("status", "active");
+
+  return { alcanzado: (count ?? 0) >= limite, limite };
+}
+
 export async function crearEmpleado(_prevState: unknown, formData: FormData) {
   const campos = leerCampos(formData);
   if (!campos.ok) return { error: campos.error };
@@ -39,6 +69,14 @@ export async function crearEmpleado(_prevState: unknown, formData: FormData) {
   if (!empresa) return { error: "No encontramos tu empresa." };
 
   const supabase = await crearClienteServidor();
+
+  const { alcanzado, limite } = await limiteAlcanzado(supabase, empresa.id);
+  if (alcanzado) {
+    return {
+      error: `Llegaste al límite de tu plan (${limite} empleados). Sube de plan en Facturación para agregar más.`,
+    };
+  }
+
   const { error } = await supabase.from("employees").insert({
     company_id: empresa.id,
     work_center_id: campos.workCenterId,
@@ -101,7 +139,16 @@ export async function reactivar(formData: FormData) {
   const empleadoId = String(formData.get("empleado_id") ?? "");
   if (!empleadoId) return;
 
+  const empresa = await obtenerEmpresaActiva();
+  if (!empresa) return;
+
   const supabase = await crearClienteServidor();
+
+  const { alcanzado } = await limiteAlcanzado(supabase, empresa.id);
+  if (alcanzado) {
+    redirect(`/panel/empleados/${empleadoId}?error=limite`);
+  }
+
   await supabase
     .from("employees")
     .update({ status: "active", terminated_at: null })
