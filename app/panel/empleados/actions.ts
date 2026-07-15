@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
 import { hashPin, PIN_REGEX } from "@/lib/pin";
+import { limiteDeEmpleadosAlcanzado } from "@/lib/facturacion";
 
 type CamposEmpleado =
   | { ok: false; error: string }
@@ -39,6 +40,14 @@ export async function crearEmpleado(_prevState: unknown, formData: FormData) {
   if (!empresa) return { error: "No encontramos tu empresa." };
 
   const supabase = await crearClienteServidor();
+
+  const { alcanzado, limite } = await limiteDeEmpleadosAlcanzado(supabase, empresa.id);
+  if (alcanzado) {
+    return {
+      error: `Llegaste al límite de tu plan (${limite} empleados). Sube de plan en Facturación para agregar más.`,
+    };
+  }
+
   const { error } = await supabase.from("employees").insert({
     company_id: empresa.id,
     work_center_id: campos.workCenterId,
@@ -101,7 +110,16 @@ export async function reactivar(formData: FormData) {
   const empleadoId = String(formData.get("empleado_id") ?? "");
   if (!empleadoId) return;
 
+  const empresa = await obtenerEmpresaActiva();
+  if (!empresa) return;
+
   const supabase = await crearClienteServidor();
+
+  const { alcanzado, limite } = await limiteDeEmpleadosAlcanzado(supabase, empresa.id);
+  if (alcanzado) {
+    redirect(`/panel/empleados/${empleadoId}?error=limite&limite=${limite}`);
+  }
+
   await supabase
     .from("employees")
     .update({ status: "active", terminated_at: null })

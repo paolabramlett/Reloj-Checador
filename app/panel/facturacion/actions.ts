@@ -7,9 +7,16 @@ import { obtenerEmpresaActiva } from "@/lib/empresa-activa";
 import { crearClienteStripe } from "@/lib/stripe";
 
 const SITIO_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-const PRECIOS = {
-  monthly: process.env.STRIPE_PRICE_MONTHLY!,
-  annual: process.env.STRIPE_PRICE_ANNUAL!,
+
+const PRECIOS: Record<string, Record<"monthly" | "annual", string>> = {
+  hasta_10: {
+    monthly: process.env.STRIPE_PRICE_MONTHLY!,
+    annual: process.env.STRIPE_PRICE_ANNUAL!,
+  },
+  hasta_25: {
+    monthly: process.env.STRIPE_PRICE_MONTHLY_25!,
+    annual: process.env.STRIPE_PRICE_ANNUAL_25!,
+  },
 };
 
 async function obtenerOCrearClienteStripe(empresaId: string): Promise<string> {
@@ -36,7 +43,16 @@ async function obtenerOCrearClienteStripe(empresaId: string): Promise<string> {
 }
 
 export async function iniciarCheckout(formData: FormData) {
-  const plan = String(formData.get("plan") ?? "monthly") as "monthly" | "annual";
+  const plan = String(formData.get("plan") ?? "monthly");
+  const rango = String(formData.get("rango") ?? "hasta_10");
+  // Esta acción se puede invocar con un POST crudo, sin pasar por los
+  // botones reales — un rango o plan fuera de estos dos valores nunca
+  // debería pasar de aquí, en vez de tronar al indexar PRECIOS más abajo
+  // (posiblemente después de ya haber creado un cliente real en Stripe).
+  if (!PRECIOS[rango] || !(plan === "monthly" || plan === "annual")) {
+    redirect("/panel/facturacion?checkout=cancelado");
+  }
+
   const empresa = await obtenerEmpresaActiva();
   if (!empresa) redirect("/panel");
 
@@ -51,7 +67,7 @@ export async function iniciarCheckout(formData: FormData) {
   const session = await stripe.checkout.sessions.create({
     customer: stripeCustomerId,
     mode: "subscription",
-    line_items: [{ price: PRECIOS[plan], quantity: 1 }],
+    line_items: [{ price: PRECIOS[rango][plan], quantity: 1 }],
     payment_method_types: ["card"],
     locale: "es",
     success_url: `${SITIO_URL}/panel/facturacion?checkout=exito`,

@@ -13,6 +13,21 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   canceled: "Cancelada",
 };
 
+const RANGOS = [
+  {
+    key: "hasta_10",
+    etiqueta: "Hasta 10 empleados",
+    mensual: "$179 MXN / mes",
+    anual: "$1,790 MXN / año (2 meses gratis)",
+  },
+  {
+    key: "hasta_25",
+    etiqueta: "Hasta 25 empleados",
+    mensual: "$349 MXN / mes",
+    anual: "$3,490 MXN / año (2 meses gratis)",
+  },
+] as const;
+
 export default async function PaginaFacturacion({
   searchParams,
 }: {
@@ -66,18 +81,23 @@ export default async function PaginaFacturacion({
       </div>
 
       {puedeSuscribirse && (
-        <form action={iniciarCheckout} className="flex flex-col gap-3">
-          <p className="text-sm text-ink">Elige tu plan (hasta 10 empleados):</p>
-          <Boton type="submit" name="plan" value="monthly">
-            $179 MXN / mes
-          </Boton>
-          <Boton type="submit" name="plan" value="annual" variante="secundario">
-            $1,790 MXN / año (2 meses gratis)
-          </Boton>
+        <div className="flex flex-col gap-6">
+          {RANGOS.map((rango) => (
+            <form key={rango.key} action={iniciarCheckout} className="flex flex-col gap-3">
+              <input type="hidden" name="rango" value={rango.key} />
+              <p className="text-sm text-ink">{rango.etiqueta}:</p>
+              <Boton type="submit" name="plan" value="monthly">
+                {rango.mensual}
+              </Boton>
+              <Boton type="submit" name="plan" value="annual" variante="secundario">
+                {rango.anual}
+              </Boton>
+            </form>
+          ))}
           <p className="text-xs text-muted">
             Por ahora, pago con tarjeta. OXXO y SPEI llegan pronto.
           </p>
-        </form>
+        </div>
       )}
 
       {yaTieneSuscripcion && (

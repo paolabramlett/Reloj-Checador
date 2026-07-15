@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerEmpresaActiva, obtenerEmpresasDelUsuario } from "@/lib/empresa-activa";
 import { obtenerEmpleadoVinculado } from "@/lib/empleado-actual";
-import { limiteDelRango } from "@/lib/facturacion";
+import { limiteDeEmpleadosAlcanzado } from "@/lib/facturacion";
 import { cerrarSesion, seleccionarEmpresa } from "./actions";
 import { Boton } from "@/components/ui/button";
 import { FormularioEmpresa } from "@/components/formulario-empresa";
@@ -38,22 +38,17 @@ export default async function PaginaPanel() {
     );
   }
 
-  const [{ data: centros }, { count: empleadosActivos }, { data: empresaConRango }] = await Promise.all([
+  const [{ data: centros }, { alcanzado: excedeRango, limite: limiteRango }] = await Promise.all([
     supabase
       .from("work_centers")
       .select("id, name, geofence_radius_m")
       .eq("company_id", empresaActiva.id)
       .order("created_at", { ascending: true }),
-    supabase
-      .from("employees")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", empresaActiva.id)
-      .eq("status", "active"),
-    supabase.from("companies").select("employee_range").eq("id", empresaActiva.id).single(),
+    // Misma función que usa el bloqueo duro de altas/reactivaciones — así
+    // el aviso y el bloqueo real nunca pueden discrepar entre sí sobre si
+    // esta empresa ya llegó a su tope (incluye null = sin tope en trial).
+    limiteDeEmpleadosAlcanzado(supabase, empresaActiva.id),
   ]);
-
-  const limiteRango = limiteDelRango(empresaConRango?.employee_range ?? "hasta_10");
-  const excedeRango = (empleadosActivos ?? 0) > limiteRango;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-6 px-6 py-12">
@@ -65,8 +60,8 @@ export default async function PaginaPanel() {
 
       {excedeRango && (
         <Mensaje tono="error">
-          Tienes {empleadosActivos} empleados activos — tu plan actual es hasta {limiteRango}. Los
-          nuevos altas siguen funcionando; contáctanos para ampliar tu rango.
+          Llegaste a tu límite de {limiteRango} empleados activos. Para agregar más, sube tu plan
+          en Facturación.
         </Mensaje>
       )}
 
