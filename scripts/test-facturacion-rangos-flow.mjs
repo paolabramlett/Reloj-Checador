@@ -238,14 +238,24 @@ async function invocarAccionConEstado(url, cookie, camposFormulario) {
 }
 
 // Para acciones simples sin useActionState (ej. reactivar): el nombre
-// del campo oculto ES la referencia a la acción, sin estado ligado.
+// del campo oculto ES la referencia a la acción, sin estado ligado. Si
+// la página tuviera más de un formulario de este tipo (ej. reactivar Y
+// quitarPin en la misma vista), tomar "el primero que aparezca" en
+// silencio podría invocar la acción equivocada — mejor fallar fuerte y
+// obligar a quien llama a filtrar por contexto (ver el uso más abajo).
 async function invocarAccionSimple(url, cookie, camposFormulario) {
   const paginaHtml = await (await fetch(url, { headers: { cookie } })).text();
-  const idMatch = paginaHtml.match(/\$ACTION_ID_[a-f0-9]+/);
-  if (!idMatch) throw new Error(`No se encontró el campo $ACTION_ID en ${url}`);
+  const coincidencias = [...paginaHtml.matchAll(/\$ACTION_ID_[a-f0-9]+/g)];
+  const idsUnicos = [...new Set(coincidencias.map((m) => m[0]))];
+  if (idsUnicos.length === 0) throw new Error(`No se encontró ningún campo $ACTION_ID en ${url}`);
+  if (idsUnicos.length > 1) {
+    throw new Error(
+      `Se encontró más de un campo $ACTION_ID en ${url} (${idsUnicos.join(", ")}) — invocarAccionSimple no sabe cuál invocar.`,
+    );
+  }
 
   const { boundary, cuerpo } = construirCuerpoMultipart({
-    [idMatch[0]]: "",
+    [idsUnicos[0]]: "",
     ...camposFormulario,
   });
 
@@ -257,61 +267,96 @@ async function invocarAccionSimple(url, cookie, camposFormulario) {
   });
 }
 
+// Crea empresa + owner + centro + N empleados activos (+ opcionalmente
+// uno de baja) y deja sesión iniciada. Si cualquier paso falla a medio
+// camino, limpia lo que ya se alcanzó a crear antes de relanzar el
+// error — sin esto, un fallo parcial dejaría filas huérfanas en la
+// base compartida sin que el finally del llamador pudiera limpiarlas
+// (nunca se le asignaría el contexto con los IDs).
 async function crearEmpresaConEmpleados({ subscriptionStatus, employeeRange, numActivos, conEmpleadoDeBaja }) {
   const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const email = `test-limite-sa-${sufijo}@example.com`;
   const password = "TestLimiteSA123!";
-  const { data: authOwner } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
-  const { data: empresa } = await admin
-    .from("companies")
-    .insert({ name: `Test Límite SA ${sufijo}`, subscription_status: subscriptionStatus, employee_range: employeeRange })
-    .select("id")
-    .single();
-  await admin.from("company_members").insert({ company_id: empresa.id, user_id: authOwner.user.id, role: "owner" });
-  const { data: centro } = await admin
-    .from("work_centers")
-    .insert({ company_id: empresa.id, name: "Centro", lat: 19.4326, lng: -99.1332, geofence_radius_m: 100 })
-    .select("id")
-    .single();
 
-  for (let i = 0; i < numActivos; i++) {
-    await admin.from("employees").insert({ company_id: empresa.id, work_center_id: centro.id, full_name: `Empleado ${i}` });
-  }
+  let authOwnerId = null;
+  let empresaId = null;
+  try {
+    const { data: authOwner, error: errAuthOwner } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    if (errAuthOwner) throw errAuthOwner;
+    authOwnerId = authOwner.user.id;
 
-  let empleadoDeBajaId = null;
-  if (conEmpleadoDeBaja) {
-    const { data: empBaja } = await admin
-      .from("employees")
-      .insert({
-        company_id: empresa.id,
-        work_center_id: centro.id,
-        full_name: "Empleado De Baja",
-        status: "terminated",
-        terminated_at: new Date().toISOString(),
-      })
+    const { data: empresa, error: errEmpresa } = await admin
+      .from("companies")
+      .insert({ name: `Test Límite SA ${sufijo}`, subscription_status: subscriptionStatus, employee_range: employeeRange })
       .select("id")
       .single();
-    empleadoDeBajaId = empBaja.id;
+    if (errEmpresa) throw errEmpresa;
+    empresaId = empresa.id;
+
+    const { error: errMiembro } = await admin
+      .from("company_members")
+      .insert({ company_id: empresaId, user_id: authOwnerId, role: "owner" });
+    if (errMiembro) throw errMiembro;
+
+    const { data: centro, error: errCentro } = await admin
+      .from("work_centers")
+      .insert({ company_id: empresaId, name: "Centro", lat: 19.4326, lng: -99.1332, geofence_radius_m: 100 })
+      .select("id")
+      .single();
+    if (errCentro) throw errCentro;
+
+    for (let i = 0; i < numActivos; i++) {
+      const { error: errEmpleado } = await admin
+        .from("employees")
+        .insert({ company_id: empresaId, work_center_id: centro.id, full_name: `Empleado ${i}` });
+      if (errEmpleado) throw errEmpleado;
+    }
+
+    let empleadoDeBajaId = null;
+    if (conEmpleadoDeBaja) {
+      const { data: empBaja, error: errEmpBaja } = await admin
+        .from("employees")
+        .insert({
+          company_id: empresaId,
+          work_center_id: centro.id,
+          full_name: "Empleado De Baja",
+          status: "terminated",
+          terminated_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (errEmpBaja) throw errEmpBaja;
+      empleadoDeBajaId = empBaja.id;
+    }
+
+    const { data: sessionData, error: errSignIn } = await anon.auth.signInWithPassword({ email, password });
+    if (errSignIn) throw errSignIn;
+
+    return {
+      empresaId,
+      authOwnerId,
+      centroId: centro.id,
+      empleadoDeBajaId,
+      cookie: cookieDeSesion(sessionData.session),
+    };
+  } catch (err) {
+    if (empresaId || authOwnerId) await limpiarEmpresa({ empresaId, authOwnerId });
+    throw err;
   }
-
-  const { data: sessionData, error: errSignIn } = await anon.auth.signInWithPassword({ email, password });
-  if (errSignIn) throw errSignIn;
-
-  return {
-    empresaId: empresa.id,
-    authOwnerId: authOwner.user.id,
-    centroId: centro.id,
-    empleadoDeBajaId,
-    cookie: cookieDeSesion(sessionData.session),
-  };
 }
 
 async function limpiarEmpresa({ empresaId, authOwnerId }) {
-  await admin.from("employees").delete().eq("company_id", empresaId);
-  await admin.from("work_centers").delete().eq("company_id", empresaId);
-  await admin.from("company_members").delete().eq("company_id", empresaId);
-  await admin.from("companies").delete().eq("id", empresaId);
-  await admin.auth.admin.deleteUser(authOwnerId);
+  if (empresaId) {
+    await admin.from("employees").delete().eq("company_id", empresaId);
+    await admin.from("work_centers").delete().eq("company_id", empresaId);
+    await admin.from("company_members").delete().eq("company_id", empresaId);
+    await admin.from("companies").delete().eq("id", empresaId);
+  }
+  if (authOwnerId) await admin.auth.admin.deleteUser(authOwnerId);
 }
 
 let ctxBloqueo;
