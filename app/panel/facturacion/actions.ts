@@ -49,7 +49,11 @@ export async function iniciarCheckout(formData: FormData) {
   // botones reales — un rango o plan fuera de estos dos valores nunca
   // debería pasar de aquí, en vez de tronar al indexar PRECIOS más abajo
   // (posiblemente después de ya haber creado un cliente real en Stripe).
-  if (!PRECIOS[rango] || !(plan === "monthly" || plan === "annual")) {
+  // También cubre un STRIPE_PRICE_* faltante en el entorno: sin esto,
+  // Stripe recibiría price: undefined y tronaría en vez de degradar
+  // limpio a "no se completó el pago".
+  const priceId = PRECIOS[rango]?.[plan as "monthly" | "annual"];
+  if (!priceId || !(plan === "monthly" || plan === "annual")) {
     redirect("/panel/facturacion?checkout=cancelado");
   }
 
@@ -67,7 +71,7 @@ export async function iniciarCheckout(formData: FormData) {
   const session = await stripe.checkout.sessions.create({
     customer: stripeCustomerId,
     mode: "subscription",
-    line_items: [{ price: PRECIOS[rango][plan], quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }],
     payment_method_types: ["card"],
     locale: "es",
     success_url: `${SITIO_URL}/panel/facturacion?checkout=exito`,
