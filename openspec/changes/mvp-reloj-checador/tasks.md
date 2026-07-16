@@ -67,7 +67,8 @@
 - [x] 9.2 Trial de 30 días sin tarjeta al crear empresa, con días restantes visibles
 - [x] 9.3 Checkout + customer portal + webhooks que actualizan `subscription_status` por empresa
 - [x] 9.4 Guard central de bloqueo suave: tableros y reportes exigen suscripción vigente o trial; fichaje e ingesta nunca se bloquean
-- [x] 9.5 Detección de exceso de rango con aviso de upgrade y periodo de gracia
+- [x] 9.5 Detección de exceso de rango — reemplazado el 2026-07-15 por bloqueo duro sobre altas nuevas (ver 9.6), ya no es solo un aviso con periodo de gracia
+- [x] 9.6 Segundo rango "hasta 25 empleados" ($349 MXN/mes, $3,490/año): `employee_range` ampliado, webhook sincroniza el rango contratado desde el price de Stripe, bloqueo duro sobre altas/reactivaciones al llegar al tope (nunca sobre el fichaje), sin tope durante el trial, ambos rangos visibles siempre en Facturación. Ver `docs/superpowers/specs/2026-07-14-plan-hasta-25-empleados-design.md` y `docs/superpowers/plans/2026-07-14-plan-hasta-25-empleados.md`. Gap conocido: la restricción de productos del portal de cliente de Stripe (qué rangos puede elegir un cliente al cambiar de plan) no se guardó vía API — pendiente de configurar a mano en el dashboard.
 
 ## 10. Calidad y lanzamiento
 
