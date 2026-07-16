@@ -13,7 +13,25 @@ import {
   IconoCheck,
   IconoEscudo,
   IconoBalanza,
+  IconoWhatsApp,
 } from "@/components/iconos-landing";
+
+const WHATSAPP_URL =
+  "https://wa.me/529514082852?text=" +
+  encodeURIComponent("Hola, vi Chekly y me interesa saber más para mi negocio.");
+
+const PLANES = [
+  {
+    precio: "$179",
+    anual: "o $1,790 MXN / año (2 meses gratis)",
+    rango: "Hasta 10 empleados",
+  },
+  {
+    precio: "$349",
+    anual: "o $3,490 MXN / año (2 meses gratis)",
+    rango: "Hasta 25 empleados",
+  },
+];
 
 const LIMITES_ANUALES = [
   { anio: 2026, horas: 48 },
@@ -104,13 +122,22 @@ const JSON_LD = {
   description:
     "Reloj checador digital para micro y pequeñas empresas mexicanas. Registra entradas, salidas y descansos con geocerca, PIN y selfie, cumple con el artículo 132 fracción XXXIV de la Ley Federal del Trabajo, y genera reportes listos para una inspección de la STPS.",
   url: "https://reloj-checador-chi.vercel.app",
-  offers: {
-    "@type": "Offer",
-    price: "179",
-    priceCurrency: "MXN",
-    priceValidUntil: "2027-12-31",
-    description: "Tarifa plana mensual, hasta 10 empleados. 30 días de prueba, sin tarjeta.",
-  },
+  offers: [
+    {
+      "@type": "Offer",
+      price: "179",
+      priceCurrency: "MXN",
+      priceValidUntil: "2027-12-31",
+      description: "Tarifa plana mensual, hasta 10 empleados. 30 días de prueba, sin tarjeta.",
+    },
+    {
+      "@type": "Offer",
+      price: "349",
+      priceCurrency: "MXN",
+      priceValidUntil: "2027-12-31",
+      description: "Tarifa plana mensual, hasta 25 empleados. 30 días de prueba, sin tarjeta.",
+    },
+  ],
   areaServed: {
     "@type": "Country",
     name: "México",
@@ -147,16 +174,34 @@ export default function Inicio() {
 
       {/* Hero */}
       <section className="relative mx-auto grid min-h-[calc(100dvh-88px)] w-full max-w-6xl items-center gap-12 overflow-hidden px-6 py-12 md:grid-cols-2">
-        {/* Fondo con un toque humano, muy sutil para no competir con el texto */}
+        {/* Fondo con un toque humano — a diferencia del degradado direccional
+            anterior, esta máscara radial mantiene los CUATRO bordes siempre
+            sólidos (nunca se asoma un fragmento cortado del letrero de la
+            foto en una esquina) y solo revela la imagen en un óvalo suave
+            centrado donde va el mockup del teléfono. Eso permite subir la
+            opacidad real de la foto sin arriesgar contraste ni recortes feos. */}
         <div className="absolute inset-0 -z-10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://images.unsplash.com/photo-1747835680062-94a22ca03ba7?auto=format&fit=crop&w=1800&q=80"
             alt="Fachada de una taquería mexicana con dos empleados atendiendo el mostrador"
-            className="h-full w-full object-cover opacity-[0.18]"
+            className="h-full w-full object-cover opacity-40"
             loading="eager"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-bg from-30% via-bg/75 via-65% to-bg/35 md:bg-gradient-to-r md:from-25% md:via-60%" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 75% 60% at 50% 78%, transparent 0%, var(--color-bg) 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-0 hidden md:block"
+            style={{
+              background:
+                "radial-gradient(ellipse 46% 62% at 72% 50%, transparent 0%, var(--color-bg) 100%)",
+            }}
+          />
         </div>
 
         <div className="flex flex-col gap-6 text-center md:text-left">
@@ -184,6 +229,15 @@ export default function Inicio() {
               </Link>
             </div>
             <p className="text-sm text-muted">30 días de prueba. Sin tarjeta.</p>
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-medium text-ink underline decoration-muted underline-offset-4 hover:text-primary hover:decoration-primary"
+            >
+              <IconoWhatsApp className="h-4 w-4" />
+              ¿Dudas? Escríbenos por WhatsApp
+            </a>
           </div>
         </div>
 
@@ -371,15 +425,22 @@ export default function Inicio() {
 
       {/* Precio */}
       <section className="flex min-h-dvh flex-col justify-center bg-surface py-20">
-        <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-6 text-center">
-          <AlEntrarEnVista className="flex flex-col items-center gap-6">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-8 px-6 text-center">
+          <AlEntrarEnVista className="flex flex-col items-center gap-8">
             <h2 className="text-3xl font-bold text-ink md:text-4xl">Un precio, sin sorpresas.</h2>
-            <div className="flex flex-col items-center gap-1 rounded-lg border border-border bg-bg px-10 py-8">
-              <p className="text-4xl font-bold text-ink">
-                $179 <span className="text-lg font-medium text-muted">MXN / mes</span>
-              </p>
-              <p className="text-sm text-muted">o $1,790 MXN / año (2 meses gratis)</p>
-              <p className="mt-3 text-sm font-medium text-primary-strong">Hasta 10 empleados</p>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {PLANES.map((plan) => (
+                <div
+                  key={plan.rango}
+                  className="flex flex-col items-center gap-1 rounded-lg border border-border bg-bg px-10 py-8"
+                >
+                  <p className="text-4xl font-bold text-ink">
+                    {plan.precio} <span className="text-lg font-medium text-muted">MXN / mes</span>
+                  </p>
+                  <p className="text-sm text-muted">{plan.anual}</p>
+                  <p className="mt-3 text-sm font-medium text-primary-strong">{plan.rango}</p>
+                </div>
+              ))}
             </div>
             <Link href="/registro" className="w-full sm:w-auto">
               <Boton type="button" anchoCompleto={false} className="w-full px-10 sm:w-auto">
@@ -387,6 +448,15 @@ export default function Inicio() {
               </Boton>
             </Link>
             <p className="text-sm text-muted">30 días de prueba. Sin tarjeta.</p>
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-md border border-border px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-strong"
+            >
+              <IconoWhatsApp className="h-4 w-4" />
+              ¿Más de 25 empleados? Pregúntanos por WhatsApp
+            </a>
           </AlEntrarEnVista>
         </div>
       </section>

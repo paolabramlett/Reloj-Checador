@@ -97,6 +97,15 @@ export function IconoEscudo({ className = "h-6 w-6" }: IconoProps) {
   );
 }
 
+export function IconoWhatsApp({ className = "h-6 w-6" }: IconoProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={base} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M6.4 17.6 4 20l2.5-2.3A8 8 0 1 1 9.6 19Z" />
+      <path d="M8.8 8.6c.2-.5.5-.5.8-.5h.5c.2 0 .4 0 .6.4l.7 1.7c.1.3 0 .5-.1.7l-.5.6c-.1.2-.2.3 0 .6.5.9 1.5 1.9 2.4 2.3.3.1.4.1.6-.1l.6-.6c.2-.2.4-.2.6-.1l1.6.8c.3.1.3.3.3.5 0 .3-.1.9-.5 1.2-.4.4-1.1.7-1.8.6-1.4-.2-3.4-1.1-4.7-2.9-1-1.4-1.5-2.7-1.5-3.7 0-.5.2-1 .4-1.5Z" />
+    </svg>
+  );
+}
+
 export function IconoBalanza({ className = "h-6 w-6" }: IconoProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={base} strokeLinecap="round" strokeLinejoin="round" className={className}>
