@@ -30,6 +30,8 @@ Object.assign(process.env, env);
 const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
+const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const SITIO_URL = env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 let failures = 0;
 function check(name, ok, detail = "") {
@@ -179,6 +181,222 @@ try {
   // prueba de Stripe — no afecta la facturación real, pero ensucia el
   // dashboard con el tiempo.
   if (clienteStripeId) await stripe.customers.del(clienteStripeId);
+}
+
+console.log("\n--- Prueba de integración: bloqueo real de crearEmpleado/reactivar vía HTTP ---");
+
+// crearEmpleado y reactivar son Server Actions de Next.js, no rutas de
+// API — no se invocan con un POST cualquiera. Pero un formulario ligado
+// a una Server Action SIN JavaScript (progressive enhancement) sí es un
+// <form> normal con campos ocultos $ACTION_* que Next.js ya renderiza
+// en el HTML; reenviar esos campos en un POST multipart real invoca la
+// acción de verdad, tal como lo haría un navegador. Los IDs de acción
+// se leen frescos de la página en cada corrida (no están hardcodeados),
+// así que esto no se rompe con cada rebuild.
+
+function cookieDeSesion(session) {
+  const cookieName = `sb-${new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0]}-auth-token`;
+  const cookieValue = "base64-" + Buffer.from(JSON.stringify(session)).toString("base64");
+  return `${cookieName}=${encodeURIComponent(cookieValue)}`;
+}
+
+function decodeEntidades(s) {
+  return s.replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+}
+
+function construirCuerpoMultipart(campos) {
+  const boundary = "----test" + Date.now() + Math.random().toString(36).slice(2);
+  const partes = Object.entries(campos)
+    .map(([nombre, valor]) => `--${boundary}\r\nContent-Disposition: form-data; name="${nombre}"\r\n\r\n${valor}\r\n`)
+    .join("");
+  return { boundary, cuerpo: partes + `--${boundary}--\r\n` };
+}
+
+// Para acciones ligadas con useActionState (ej. crearEmpleado): el
+// formulario trae $ACTION_1:0 (referencia a la función + estado inicial
+// ligado) y $ACTION_KEY.
+async function invocarAccionConEstado(url, cookie, camposFormulario) {
+  const paginaHtml = await (await fetch(url, { headers: { cookie } })).text();
+  const idMatch = paginaHtml.match(/\$ACTION_1:0" value="([^"]*)"/);
+  const keyMatch = paginaHtml.match(/\$ACTION_KEY" value="([^"]*)"/);
+  if (!idMatch || !keyMatch) throw new Error(`No se encontraron los campos $ACTION en ${url}`);
+
+  const { boundary, cuerpo } = construirCuerpoMultipart({
+    "$ACTION_REF_1": "",
+    "$ACTION_1:0": decodeEntidades(idMatch[1]),
+    "$ACTION_1:1": '[{"error":null}]',
+    "$ACTION_KEY": decodeEntidades(keyMatch[1]),
+    ...camposFormulario,
+  });
+
+  return fetch(url, {
+    method: "POST",
+    headers: { cookie, "Content-Type": `multipart/form-data; boundary=${boundary}` },
+    body: cuerpo,
+    redirect: "manual",
+  });
+}
+
+// Para acciones simples sin useActionState (ej. reactivar): el nombre
+// del campo oculto ES la referencia a la acción, sin estado ligado.
+async function invocarAccionSimple(url, cookie, camposFormulario) {
+  const paginaHtml = await (await fetch(url, { headers: { cookie } })).text();
+  const idMatch = paginaHtml.match(/\$ACTION_ID_[a-f0-9]+/);
+  if (!idMatch) throw new Error(`No se encontró el campo $ACTION_ID en ${url}`);
+
+  const { boundary, cuerpo } = construirCuerpoMultipart({
+    [idMatch[0]]: "",
+    ...camposFormulario,
+  });
+
+  return fetch(url, {
+    method: "POST",
+    headers: { cookie, "Content-Type": `multipart/form-data; boundary=${boundary}` },
+    body: cuerpo,
+    redirect: "manual",
+  });
+}
+
+async function crearEmpresaConEmpleados({ subscriptionStatus, employeeRange, numActivos, conEmpleadoDeBaja }) {
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const email = `test-limite-sa-${sufijo}@example.com`;
+  const password = "TestLimiteSA123!";
+  const { data: authOwner } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  const { data: empresa } = await admin
+    .from("companies")
+    .insert({ name: `Test Límite SA ${sufijo}`, subscription_status: subscriptionStatus, employee_range: employeeRange })
+    .select("id")
+    .single();
+  await admin.from("company_members").insert({ company_id: empresa.id, user_id: authOwner.user.id, role: "owner" });
+  const { data: centro } = await admin
+    .from("work_centers")
+    .insert({ company_id: empresa.id, name: "Centro", lat: 19.4326, lng: -99.1332, geofence_radius_m: 100 })
+    .select("id")
+    .single();
+
+  for (let i = 0; i < numActivos; i++) {
+    await admin.from("employees").insert({ company_id: empresa.id, work_center_id: centro.id, full_name: `Empleado ${i}` });
+  }
+
+  let empleadoDeBajaId = null;
+  if (conEmpleadoDeBaja) {
+    const { data: empBaja } = await admin
+      .from("employees")
+      .insert({
+        company_id: empresa.id,
+        work_center_id: centro.id,
+        full_name: "Empleado De Baja",
+        status: "terminated",
+        terminated_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    empleadoDeBajaId = empBaja.id;
+  }
+
+  const { data: sessionData, error: errSignIn } = await anon.auth.signInWithPassword({ email, password });
+  if (errSignIn) throw errSignIn;
+
+  return {
+    empresaId: empresa.id,
+    authOwnerId: authOwner.user.id,
+    centroId: centro.id,
+    empleadoDeBajaId,
+    cookie: cookieDeSesion(sessionData.session),
+  };
+}
+
+async function limpiarEmpresa({ empresaId, authOwnerId }) {
+  await admin.from("employees").delete().eq("company_id", empresaId);
+  await admin.from("work_centers").delete().eq("company_id", empresaId);
+  await admin.from("company_members").delete().eq("company_id", empresaId);
+  await admin.from("companies").delete().eq("id", empresaId);
+  await admin.auth.admin.deleteUser(authOwnerId);
+}
+
+let ctxBloqueo;
+try {
+  ctxBloqueo = await crearEmpresaConEmpleados({
+    subscriptionStatus: "active",
+    employeeRange: "hasta_10",
+    numActivos: 10,
+    conEmpleadoDeBaja: true,
+  });
+
+  const urlNuevo = `${SITIO_URL}/panel/empleados/nuevo`;
+  const respuestaAlta = await invocarAccionConEstado(urlNuevo, ctxBloqueo.cookie, {
+    nombre: "Empleado Numero 11",
+    work_center_id: ctxBloqueo.centroId,
+    pin: "",
+  });
+  const cuerpoAlta = await respuestaAlta.text();
+  check(
+    "crearEmpleado real bloquea al empleado #11 (empresa activa en el tope)",
+    respuestaAlta.status === 200 && cuerpoAlta.includes("Llegaste al límite de tu plan"),
+    `status ${respuestaAlta.status}`,
+  );
+
+  const { count: activosTrasIntento } = await admin
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", ctxBloqueo.empresaId)
+    .eq("status", "active");
+  check("El empleado #11 NO se insertó de verdad", activosTrasIntento === 10, `activos: ${activosTrasIntento}`);
+
+  const urlEditar = `${SITIO_URL}/panel/empleados/${ctxBloqueo.empleadoDeBajaId}`;
+  const respuestaReactivar = await invocarAccionSimple(urlEditar, ctxBloqueo.cookie, {
+    empleado_id: ctxBloqueo.empleadoDeBajaId,
+  });
+  check(
+    "reactivar real bloquea al llegar al tope, con el límite en la URL",
+    respuestaReactivar.status === 303 &&
+      (respuestaReactivar.headers.get("location") ?? "").includes("error=limite&limite=10"),
+    `status ${respuestaReactivar.status}, location ${respuestaReactivar.headers.get("location")}`,
+  );
+
+  const { data: empleadoTrasReactivar } = await admin
+    .from("employees")
+    .select("status")
+    .eq("id", ctxBloqueo.empleadoDeBajaId)
+    .single();
+  check(
+    "El empleado NO quedó reactivado de verdad",
+    empleadoTrasReactivar?.status === "terminated",
+    `status: ${empleadoTrasReactivar?.status}`,
+  );
+} finally {
+  if (ctxBloqueo) await limpiarEmpresa(ctxBloqueo);
+}
+
+let ctxTrial;
+try {
+  ctxTrial = await crearEmpresaConEmpleados({
+    subscriptionStatus: "trialing",
+    employeeRange: "hasta_10",
+    numActivos: 12,
+    conEmpleadoDeBaja: false,
+  });
+
+  const urlNuevo = `${SITIO_URL}/panel/empleados/nuevo`;
+  const respuestaAlta = await invocarAccionConEstado(urlNuevo, ctxTrial.cookie, {
+    nombre: "Empleado Numero 13",
+    work_center_id: ctxTrial.centroId,
+    pin: "",
+  });
+  check(
+    "crearEmpleado real NO bloquea en trial, aunque ya superó el tope nominal del rango",
+    respuestaAlta.status === 303 && respuestaAlta.headers.get("location") === "/panel/empleados",
+    `status ${respuestaAlta.status}, location ${respuestaAlta.headers.get("location")}`,
+  );
+
+  const { count: activosTrial } = await admin
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", ctxTrial.empresaId)
+    .eq("status", "active");
+  check("El empleado #13 SÍ se insertó de verdad en trial", activosTrial === 13, `activos: ${activosTrial}`);
+} finally {
+  if (ctxTrial) await limpiarEmpresa(ctxTrial);
 }
 
 console.log(failures === 0 ? "\nTodas las pruebas de facturación por rangos pasan." : `\n${failures} fallas.`);
