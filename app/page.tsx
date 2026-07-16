@@ -174,32 +174,26 @@ export default function Inicio() {
 
       {/* Hero */}
       <section className="relative mx-auto grid min-h-[calc(100dvh-88px)] w-full max-w-6xl items-center gap-12 overflow-hidden px-6 py-12 md:grid-cols-2">
-        {/* Fondo con un toque humano — a diferencia del degradado direccional
-            anterior, esta máscara radial mantiene los CUATRO bordes siempre
-            sólidos (nunca se asoma un fragmento cortado del letrero de la
-            foto en una esquina) y solo revela la imagen en un óvalo suave
-            centrado donde va el mockup del teléfono. Eso permite subir la
-            opacidad real de la foto sin arriesgar contraste ni recortes feos. */}
+        {/* Fondo con un toque humano — object-cover recorta esta foto por
+            los lados (el letrero de la taquería queda pegado al borde),
+            así que un solo óvalo CENTRADO y con margen generoso respecto
+            a los cuatro bordes es lo único que garantiza que nunca asome
+            un fragmento cortado del letrero, sin importar el viewport. Un
+            óvalo descentrado (p. ej. hacia el mockup del teléfono) corre
+            el riesgo de revelar justo la zona recortada — ya pasó una vez. */}
         <div className="absolute inset-0 -z-10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://images.unsplash.com/photo-1747835680062-94a22ca03ba7?auto=format&fit=crop&w=1800&q=80"
             alt="Fachada de una taquería mexicana con dos empleados atendiendo el mostrador"
-            className="h-full w-full object-cover opacity-40"
+            className="h-full w-full object-cover opacity-45"
             loading="eager"
           />
           <div
             className="absolute inset-0"
             style={{
               background:
-                "radial-gradient(ellipse 75% 60% at 50% 78%, transparent 0%, var(--color-bg) 100%)",
-            }}
-          />
-          <div
-            className="absolute inset-0 hidden md:block"
-            style={{
-              background:
-                "radial-gradient(ellipse 46% 62% at 72% 50%, transparent 0%, var(--color-bg) 100%)",
+                "radial-gradient(ellipse 34% 36% at 50% 52%, transparent 0%, var(--color-bg) 100%)",
             }}
           />
         </div>
